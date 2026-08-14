@@ -1,17 +1,26 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
-import { GraduationCap, Mail, Lock, User, Eye, EyeOff, ChevronRight, AlertCircle } from 'lucide-react';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import {
+  GraduationCap,
+  Mail,
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  ChevronRight,
+  AlertCircle,
+} from "lucide-react";
 
 export default function AuthPage() {
-  const [activeTab, setActiveTab] = useState('login');
+  const [activeTab, setActiveTab] = useState("login");
   const [showPassword, setShowPassword] = useState(false);
-  const [emailError, setEmailError] = useState('');
+  const [emailError, setEmailError] = useState("");
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    grade: 'Grade 12'
+    fullName: "",
+    email: "",
+    password: "",
+    grade: "Grade 12",
   });
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -25,29 +34,35 @@ export default function AuthPage() {
     const email = e.target.value;
     setFormData({ ...formData, email });
     if (email && !validateEmail(email)) {
-      setEmailError('Please enter a valid email address');
+      setEmailError("Please enter a valid email address");
     } else {
-      setEmailError('');
+      setEmailError("");
     }
   };
 
   const handleLogin = (e) => {
     e.preventDefault();
     login(formData.email, formData.password);
-    navigate('/dashboard');
+    navigate("/dashboard");
   };
 
   const handleRegister = (e) => {
     e.preventDefault();
     if (!validateEmail(formData.email)) {
-      setEmailError('Please enter a valid email address');
+      setEmailError("Please enter a valid email address");
       return;
     }
     login(formData.email, formData.password);
-    navigate('/dashboard');
+    navigate("/dashboard");
   };
 
-  const grades = ['Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Matriculated'];
+  const grades = [
+    "Grade 9",
+    "Grade 10",
+    "Grade 11",
+    "Grade 12",
+    "Matriculated",
+  ];
 
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center px-4 py-12">
@@ -60,30 +75,34 @@ export default function AuthPage() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
             <GraduationCap className="w-10 h-10 text-accent" />
-            <span className="text-white font-heading font-bold text-2xl">Uni NextStep</span>
+            <span className="text-white font-heading font-bold text-2xl">
+              Uni NextStep
+            </span>
           </div>
-          <p className="text-blue-200">Your gateway to South African universities</p>
+          <p className="text-blue-200">
+            Your gateway to South African universities
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           {/* Tabs */}
           <div className="flex border-b border-gray-100">
             <button
-              onClick={() => setActiveTab('login')}
+              onClick={() => setActiveTab("login")}
               className={`flex-1 py-4 text-sm font-semibold transition-all ${
-                activeTab === 'login'
-                  ? 'text-accent border-b-2 border-accent bg-accent/5'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === "login"
+                  ? "text-accent border-b-2 border-accent bg-accent/5"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               Login
             </button>
             <button
-              onClick={() => setActiveTab('register')}
+              onClick={() => setActiveTab("register")}
               className={`flex-1 py-4 text-sm font-semibold transition-all ${
-                activeTab === 'register'
-                  ? 'text-accent border-b-2 border-accent bg-accent/5'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === "register"
+                  ? "text-accent border-b-2 border-accent bg-accent/5"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               Register
@@ -91,10 +110,12 @@ export default function AuthPage() {
           </div>
 
           <div className="p-8">
-            {activeTab === 'login' ? (
+            {activeTab === "login" ? (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Email
+                  </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -103,43 +124,56 @@ export default function AuthPage() {
                       placeholder="you@example.com"
                       className="input-field pl-11"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Password
+                  </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
-                      type={showPassword ? 'text' : 'password'}
+                      type={showPassword ? "text" : "password"}
                       required
                       placeholder="Enter your password"
                       className="input-field pl-11 pr-11"
                       value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
                     </button>
                   </div>
                 </div>
 
-                <button type="submit" className="w-full btn-primary flex items-center justify-center gap-2">
+                <button
+                  type="submit"
+                  className="w-full btn-primary flex items-center justify-center gap-2"
+                >
                   Login
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
                 <p className="text-center text-sm text-gray-500">
-                  New here?{' '}
+                  New here?{" "}
                   <button
                     type="button"
-                    onClick={() => setActiveTab('register')}
+                    onClick={() => setActiveTab("register")}
                     className="text-accent font-semibold hover:underline"
                   >
                     Create an account
@@ -149,7 +183,9 @@ export default function AuthPage() {
             ) : (
               <form onSubmit={handleRegister} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Full Name
+                  </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -158,20 +194,24 @@ export default function AuthPage() {
                       placeholder="Thabo Nkosi"
                       className="input-field pl-11"
                       value={formData.fullName}
-                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, fullName: e.target.value })
+                      }
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Email
+                  </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="email"
                       required
                       placeholder="you@example.com"
-                      className={`input-field pl-11 ${emailError ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : ''}`}
+                      className={`input-field pl-11 ${emailError ? "border-red-400 focus:border-red-400 focus:ring-red-400/20" : ""}`}
                       value={formData.email}
                       onChange={handleEmailChange}
                     />
@@ -185,48 +225,67 @@ export default function AuthPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Password
+                  </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
-                      type={showPassword ? 'text' : 'password'}
+                      type={showPassword ? "text" : "password"}
                       required
                       placeholder="Create a password"
                       className="input-field pl-11 pr-11"
                       value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Grade</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Current Grade
+                  </label>
                   <select
                     className="input-field"
                     value={formData.grade}
-                    onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, grade: e.target.value })
+                    }
                   >
-                    {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                    {grades.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                <button type="submit" className="w-full btn-primary flex items-center justify-center gap-2">
+                <button
+                  type="submit"
+                  className="w-full btn-primary flex items-center justify-center gap-2"
+                >
                   Create Account
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
                 <p className="text-center text-sm text-gray-500">
-                  Already have an account?{' '}
+                  Already have an account?{" "}
                   <button
                     type="button"
-                    onClick={() => setActiveTab('login')}
+                    onClick={() => setActiveTab("login")}
                     className="text-accent font-semibold hover:underline"
                   >
                     Login

@@ -17,7 +17,7 @@ A South African university guidance application built with React + Tailwind CSS.
 - Tailwind CSS
 - React Router DOM
 - Lucide React icons
-- Mock data (no backend required)
+- Mock data 
 
 ## Getting Started
 
