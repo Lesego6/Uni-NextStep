@@ -1,18 +1,29 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Shield, Mail, Lock, Eye, EyeOff, ChevronRight } from 'lucide-react';
+import { Shield, Mail, Lock, Eye, EyeOff, ChevronRight, AlertCircle } from 'lucide-react';
 
 export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    login(formData.email, formData.password, true);
-    navigate('/admin/users');
+
+    try {
+      setFormError('');
+      setIsSubmitting(true);
+      await login(formData.email, formData.password, 'admin');
+      navigate('/admin/users');
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -43,7 +54,10 @@ export default function AdminLogin() {
                   placeholder="admin@uninextstep.co.za"
                   className="input-field pl-11"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormError('');
+                    setFormData({ ...formData, email: e.target.value });
+                  }}
                 />
               </div>
             </div>
@@ -58,7 +72,10 @@ export default function AdminLogin() {
                   placeholder="Enter password"
                   className="input-field pl-11 pr-11"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => {
+                    setFormError('');
+                    setFormData({ ...formData, password: e.target.value });
+                  }}
                 />
                 <button
                   type="button"
@@ -70,8 +87,19 @@ export default function AdminLogin() {
               </div>
             </div>
 
-            <button type="submit" className="w-full bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-2">
-              Login to Admin Portal
+            {formError && (
+              <div className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                <AlertCircle className="w-4 h-4" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-gray-900 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSubmitting ? 'Logging in...' : 'Login to Admin Portal'}
               <ChevronRight className="w-4 h-4" />
             </button>
           </form>

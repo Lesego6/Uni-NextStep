@@ -1,9 +1,26 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Calculator, Building2, BookOpen, FileText, ChevronRight, CheckCircle2, Circle, Lock, Award, TrendingUp } from 'lucide-react';
-
+import { getMyProfile } from '../services/api';
 export default function StudentDashboard() {
-  const { apsScore, user } = useAuth();
+  const { setApsScore } = useAuth();
+
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const data = await getMyProfile();
+        setProfile(data.user);
+        setApsScore(data.user.aps_score);
+      } catch (error) {
+        console.error("Failed to load profile:", error);
+      }
+    };
+
+    loadProfile();
+  }, [setApsScore]);
 
   const steps = [
     { num: 1, label: 'Calculate APS', desc: 'Enter your matric subjects', active: true, path: '/calculator' },
@@ -22,7 +39,9 @@ export default function StudentDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-heading font-bold mb-1">Welcome back, {user?.name?.split(' ')[0] || 'Thabo'}</h1>
+        <h1 className="text-3xl font-heading font-bold mb-1">
+  Welcome back, {profile?.first_name || "Student"}
+</h1>
         <p className="text-gray-500">Here's your university journey progress</p>
       </div>
 
@@ -36,7 +55,7 @@ export default function StudentDashboard() {
             <div>
               <p className="text-blue-200 text-sm font-medium">Your APS Score</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold">{apsScore}</span>
+             <span className="text-4xl font-bold">{profile?.aps_score ?? 0}</span>
                 <span className="text-blue-200">/ 42</span>
               </div>
             </div>

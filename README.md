@@ -26,6 +26,14 @@ npm install
 npm run dev
 ```
 
+In a second terminal, start the backend:
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
 ## Routes
 
 | Route | Page |
@@ -42,10 +50,12 @@ npm run dev
 | `/admin/users` | User Management |
 | `/admin/reports` | Reports |
 
-## Mock Credentials
+## Test Credentials
 
-- **Student**: any email + password → redirects to dashboard
-- **Admin**: any email + password on `/admin` → redirects to admin panel
+- **Student**: register a new account from `/auth`
+- **Admin**: `admin@uninextstep.co.za` / `admin123`
+
+The backend creates the default admin account automatically if no admin exists.
 
 ## Design System
 

@@ -1,26 +1,19 @@
 import { useState } from 'react';
+import { saveAPS } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { subjectList } from '../data/subjects.js';
 import { Plus, Trash2, AlertCircle, Calculator, ArrowRight, BookOpen } from 'lucide-react';
 
-function calculateAPSPoints(mark, subjectName) {
-  let points = 0;
-  if (mark >= 90) points = 8;
-  else if (mark >= 80) points = 7;
-  else if (mark >= 70) points = 6;
-  else if (mark >= 60) points = 5;
-  else if (mark >= 50) points = 4;
-  else if (mark >= 40) points = 3;
-  else if (mark >= 30) points = 2;
-  else points = 1;
-
-  if (subjectName === "Life Orientation" && points > 4) {
-    points = 4;
-  }
-  return points;
+function calculateAPSPoints(mark) {
+  if (mark >= 80) return 7;
+  if (mark >= 70) return 6;
+  if (mark >= 60) return 5;
+  if (mark >= 50) return 4;
+  if (mark >= 40) return 3;
+  if (mark >= 30) return 2;
+  return 1;
 }
-
 export default function APSCalculator() {
   const { setApsScore } = useAuth();
   const navigate = useNavigate();
@@ -65,23 +58,33 @@ export default function APSCalculator() {
     }));
   };
 
-  const totalAPS = subjects.reduce((sum, s) => {
-    const mark = parseFloat(s.mark);
-    if (!isNaN(mark) && mark >= 0 && mark <= 100) {
-      return sum + calculateAPSPoints(mark, s.name);
-    }
-    return sum;
+  const validSubjects = subjects.filter((s) => {
+  const mark = parseFloat(s.mark);
+
+  return (
+    !isNaN(mark) &&
+    mark >= 0 &&
+    mark <= 100 &&
+    s.name !== "Life Orientation"
+  );
+});
+
+const totalAPS = validSubjects
+  .sort((a, b) => parseFloat(b.mark) - parseFloat(a.mark))
+  .slice(0, 6)
+  .reduce((sum, s) => {
+    return sum + calculateAPSPoints(parseFloat(s.mark));
   }, 0);
 
-  const validSubjects = subjects.filter(s => {
-    const mark = parseFloat(s.mark);
-    return !isNaN(mark) && mark >= 0 && mark <= 100;
-  });
-
-  const handleSave = () => {
+const handleSave = async () => {
+  try {
+    await saveAPS(totalAPS);
     setApsScore(totalAPS);
     navigate('/courses');
-  };
+  } catch (error) {
+    alert(error.message);
+  }
+};
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -202,15 +205,14 @@ export default function APSCalculator() {
         <h3 className="font-bold mb-3 text-sm">NSC Point Scale</h3>
         <div className="grid grid-cols-4 md:grid-cols-8 gap-2 text-xs">
           {[
-            { range: '90-100%', pts: 8 },
-            { range: '80-89%', pts: 7 },
-            { range: '70-79%', pts: 6 },
-            { range: '60-69%', pts: 5 },
-            { range: '50-59%', pts: 4 },
-            { range: '40-49%', pts: 3 },
-            { range: '30-39%', pts: 2 },
-            { range: '0-29%', pts: 1 },
-          ].map(item => (
+  { range: '80-100%', pts: 7 },
+  { range: '70-79%', pts: 6 },
+  { range: '60-69%', pts: 5 },
+  { range: '50-59%', pts: 4 },
+  { range: '40-49%', pts: 3 },
+  { range: '30-39%', pts: 2 },
+  { range: '0-29%', pts: 1 },
+].map(item => (
             <div key={item.pts} className="bg-gray-50 rounded-lg p-2 text-center">
               <div className="font-bold text-primary">{item.pts} pts</div>
               <div className="text-gray-500">{item.range}</div>

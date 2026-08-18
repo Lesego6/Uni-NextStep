@@ -15,22 +15,40 @@ import StudentNav from './components/StudentNav.jsx';
 import AdminNav from './components/AdminNav.jsx';
 
 function ProtectedRoute({ children }) {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, loading } = useAuth();
+
+  if (loading) {
+    return <RouteLoading />;
+  }
+
   return isLoggedIn ? children : <Navigate to="/auth" replace />;
 }
 
 function AdminRoute({ children }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, loading } = useAuth();
+
+  if (loading) {
+    return <RouteLoading />;
+  }
+
   return isAdmin ? children : <Navigate to="/admin" replace />;
 }
 
+function RouteLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center text-sm font-semibold text-primary">
+      Loading...
+    </div>
+  );
+}
+
 function App() {
-  const { isLoggedIn, isAdmin } = useAuth();
+  const { isLoggedIn, isAdmin, loading } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
-      {isLoggedIn && !isAdmin && <StudentNav />}
-      {isAdmin && <AdminNav />}
+      {!loading && isLoggedIn && !isAdmin && <StudentNav />}
+      {!loading && isAdmin && <AdminNav />}
       <main className={isLoggedIn || isAdmin ? 'pt-16' : ''}>
         <Routes>
           <Route path="/" element={<LandingPage />} />

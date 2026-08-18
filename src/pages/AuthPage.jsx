@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { registerUser } from "../services/api";
 import {
   GraduationCap,
   Mail,
@@ -16,6 +17,8 @@ export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -33,6 +36,7 @@ export default function AuthPage() {
   const handleEmailChange = (e) => {
     const email = e.target.value;
     setFormData({ ...formData, email });
+    setFormError("");
     if (email && !validateEmail(email)) {
       setEmailError("Please enter a valid email address");
     } else {
@@ -40,20 +44,58 @@ export default function AuthPage() {
     }
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    login(formData.email, formData.password);
-    navigate("/dashboard");
+
+    try {
+      setFormError("");
+      setIsSubmitting(true);
+      await login(formData.email, formData.password, "student");
+      navigate("/dashboard");
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
+    setFormError("");
+
     if (!validateEmail(formData.email)) {
       setEmailError("Please enter a valid email address");
       return;
     }
-    login(formData.email, formData.password);
-    navigate("/dashboard");
+
+    const nameParts = formData.fullName.trim().split(" ");
+
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(" ");
+
+    if (!lastName) {
+      setFormError("Please enter your full name.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await registerUser({
+        first_name: firstName,
+        last_name: lastName,
+        email: formData.email,
+        password: formData.password,
+        grade: formData.grade,
+      });
+
+      await login(formData.email, formData.password, "student");
+
+      navigate("/dashboard");
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const grades = [
@@ -88,7 +130,11 @@ export default function AuthPage() {
           {/* Tabs */}
           <div className="flex border-b border-gray-100">
             <button
-              onClick={() => setActiveTab("login")}
+              onClick={() => {
+                setActiveTab("login");
+                setFormError("");
+                setEmailError("");
+              }}
               className={`flex-1 py-4 text-sm font-semibold transition-all ${
                 activeTab === "login"
                   ? "text-accent border-b-2 border-accent bg-accent/5"
@@ -98,7 +144,11 @@ export default function AuthPage() {
               Login
             </button>
             <button
-              onClick={() => setActiveTab("register")}
+              onClick={() => {
+                setActiveTab("register");
+                setFormError("");
+                setEmailError("");
+              }}
               className={`flex-1 py-4 text-sm font-semibold transition-all ${
                 activeTab === "register"
                   ? "text-accent border-b-2 border-accent bg-accent/5"
@@ -124,9 +174,10 @@ export default function AuthPage() {
                       placeholder="you@example.com"
                       className="input-field pl-11"
                       value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormError("");
+                        setFormData({ ...formData, email: e.target.value });
+                      }}
                     />
                   </div>
                 </div>
@@ -143,9 +194,10 @@ export default function AuthPage() {
                       placeholder="Enter your password"
                       className="input-field pl-11 pr-11"
                       value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormError("");
+                        setFormData({ ...formData, password: e.target.value });
+                      }}
                     />
                     <button
                       type="button"
@@ -161,11 +213,19 @@ export default function AuthPage() {
                   </div>
                 </div>
 
+                {formError && (
+                  <div className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full btn-primary flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="w-full btn-primary flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  Login
+                  {isSubmitting ? "Logging in..." : "Login"}
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
@@ -173,7 +233,11 @@ export default function AuthPage() {
                   New here?{" "}
                   <button
                     type="button"
-                    onClick={() => setActiveTab("register")}
+                    onClick={() => {
+                      setActiveTab("register");
+                      setFormError("");
+                      setEmailError("");
+                    }}
                     className="text-accent font-semibold hover:underline"
                   >
                     Create an account
@@ -194,9 +258,10 @@ export default function AuthPage() {
                       placeholder="Thabo Nkosi"
                       className="input-field pl-11"
                       value={formData.fullName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, fullName: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormError("");
+                        setFormData({ ...formData, fullName: e.target.value });
+                      }}
                     />
                   </div>
                 </div>
@@ -236,9 +301,10 @@ export default function AuthPage() {
                       placeholder="Create a password"
                       className="input-field pl-11 pr-11"
                       value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormError("");
+                        setFormData({ ...formData, password: e.target.value });
+                      }}
                     />
                     <button
                       type="button"
@@ -273,11 +339,19 @@ export default function AuthPage() {
                   </select>
                 </div>
 
+                {formError && (
+                  <div className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full btn-primary flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="w-full btn-primary flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  Create Account
+                  {isSubmitting ? "Creating account..." : "Create Account"}
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
@@ -285,7 +359,11 @@ export default function AuthPage() {
                   Already have an account?{" "}
                   <button
                     type="button"
-                    onClick={() => setActiveTab("login")}
+                    onClick={() => {
+                      setActiveTab("login");
+                      setFormError("");
+                      setEmailError("");
+                    }}
                     className="text-accent font-semibold hover:underline"
                   >
                     Login
