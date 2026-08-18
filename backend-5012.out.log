@@ -1,0 +1,12 @@
+
+> backend@1.0.0 dev
+> node server.js
+
+◇ injected env (1) from .env // tip: ⌘ enable debugging { debug: true }
+Uni NextStep database connected successfully!
+Users table is ready!
+Admin user is ready!
+◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+Uni NextStep backend running on http://localhost:5012

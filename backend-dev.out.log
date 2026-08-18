@@ -6,3 +6,7 @@
 Uni NextStep database connected successfully!
 Users table is ready!
 Admin user is ready!
+◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+Uni NextStep backend running on http://localhost:5000
