@@ -1,0 +1,8 @@
+
+> backend@1.0.0 dev
+> node server.js
+
+◇ injected env (1) from .env // tip: ⌘ override existing { override: true }
+Uni NextStep database connected successfully!
+Users table is ready!
+Admin user is ready!

@@ -95,6 +95,12 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    if (user.status !== "Active") {
+      return res.status(403).json({
+        message: "This account is inactive. Please contact an administrator."
+      });
+    }
+
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
@@ -125,6 +131,7 @@ router.post("/login", async (req, res) => {
         name: `${user.first_name} ${user.last_name}`.trim(),
         email: user.email,
         role: user.role,
+        status: user.status,
         grade: user.grade || null,
         aps_score: user.aps_score ?? 0
       }

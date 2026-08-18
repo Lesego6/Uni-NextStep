@@ -16,9 +16,23 @@ db.exec(`
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'student',
+        status TEXT NOT NULL DEFAULT 'Active',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 `);
+
+function ensureColumn(tableName, columnName, columnDefinition) {
+  const columns = db
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all()
+    .map((column) => column.name);
+
+  if (!columns.includes(columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+  }
+}
+
+ensureColumn("users", "status", "TEXT NOT NULL DEFAULT 'Active'");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS student_profiles (
@@ -75,6 +89,12 @@ db.exec(`
   WHERE aps_score IS NULL
 `);
 
+db.exec(`
+  UPDATE users
+  SET status = 'Active'
+  WHERE status IS NULL
+`);
+
 function seedAdminUser() {
   const existingAdmin = db
     .prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
@@ -95,7 +115,7 @@ function seedAdminUser() {
     .get(adminEmail);
 
   if (existingUser) {
-    db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(existingUser.id);
+    db.prepare("UPDATE users SET role = 'admin', status = 'Active' WHERE id = ?").run(existingUser.id);
     console.log("Existing admin email promoted to admin role!");
     return;
   }
@@ -103,8 +123,8 @@ function seedAdminUser() {
   const hashedPassword = bcrypt.hashSync(adminPassword, 10);
 
   db.prepare(`
-    INSERT INTO users (first_name, last_name, email, password, role)
-    VALUES (?, ?, ?, ?, 'admin')
+    INSERT INTO users (first_name, last_name, email, password, role, status)
+    VALUES (?, ?, ?, ?, 'admin', 'Active')
   `).run("System", "Admin", adminEmail, hashedPassword);
 
   console.log("Default admin user created!");

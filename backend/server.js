@@ -4,6 +4,7 @@ const db = require("./database");
 const authRoutes = require("./routes/auth");
 const studentRoutes = require("./routes/student");
 const applicationRoutes = require("./routes/applications");
+const adminRoutes = require("./routes/admin");
 require("dotenv").config();
 
 const app = express();
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/applications", applicationRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (req, res) => {
     res.json({

@@ -151,3 +151,98 @@ export async function updateApplicationStatus(applicationId, status) {
 
   return data;
 }
+
+export async function getAdminUsers({ search = "", role = "" } = {}) {
+  const params = new URLSearchParams();
+
+  if (search) {
+    params.set("search", search);
+  }
+
+  if (role && role !== "All") {
+    params.set("role", role);
+  }
+
+  const query = params.toString() ? `?${params.toString()}` : "";
+
+  const response = await fetch(`${API_URL}/admin/users${query}`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to load users");
+  }
+
+  return data;
+}
+
+export async function createAdminUser(userData) {
+  const response = await fetch(`${API_URL}/admin/users`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(userData),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to create user");
+  }
+
+  return data;
+}
+
+export async function updateAdminUserStatus(userId, status) {
+  const response = await fetch(`${API_URL}/admin/users/${userId}/status`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ status }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to update user status");
+  }
+
+  return data;
+}
+
+export async function deleteAdminUser(userId) {
+  const response = await fetch(`${API_URL}/admin/users/${userId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to delete user");
+  }
+
+  return data;
+}
+
+export async function getAdminReport({ type, startDate, endDate }) {
+  const params = new URLSearchParams({
+    type,
+    start_date: startDate,
+    end_date: endDate,
+  });
+
+  const response = await fetch(`${API_URL}/admin/reports?${params.toString()}`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to generate report");
+  }
+
+  return data;
+}
