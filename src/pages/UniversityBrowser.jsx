@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { getUniversities, getCourses } from "../services/api.js";
-import { Building2, MapPin, X, ChevronRight, GraduationCap, Plus, Loader2, Search, AlertCircle } from "lucide-react";
+import { Building2, MapPin, X, ChevronRight, GraduationCap, Plus, Loader2, Search, AlertCircle, BookOpen } from "lucide-react";
 
 export default function UniversityBrowser() {
   const [universities, setUniversities] = useState([]);

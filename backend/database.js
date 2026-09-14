@@ -29,14 +29,21 @@ async function ensureDatabaseAndSchema() {
     namedPlaceholders: false
   });
 
-  const schemaSql = fs.readFileSync(path.join(__dirname, "db", "mysql.example.sql"), "utf8");
-  const statements = schemaSql
-    .split(/;\s*\n|;\s*$/m)
-    .map((statement) => statement.trim())
-    .filter(Boolean);
+  const [tables] = await databaseConnection.query(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = ? LIMIT 1`,
+    [dbName]
+  );
 
-  for (const statement of statements) {
-    await databaseConnection.query(statement);
+  if (tables.length === 0) {
+    const schemaSql = fs.readFileSync(path.join(__dirname, "db", "mysql.example.sql"), "utf8");
+    const statements = schemaSql
+      .split(/;\s*\n|;\s*$/m)
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+
+    for (const statement of statements) {
+      await databaseConnection.query(statement);
+    }
   }
 
   await databaseConnection.end();
