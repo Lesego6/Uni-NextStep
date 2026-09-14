@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { subjectList } from '../data/subjects.js';
 import { Plus, Trash2, AlertCircle, Calculator, ArrowRight, BookOpen } from 'lucide-react';
 
+// This is kept for UI optimism only. The backend makes the final determination.
 function calculateAPSPoints(mark) {
   if (mark >= 80) return 7;
   if (mark >= 70) return 6;
@@ -14,6 +15,7 @@ function calculateAPSPoints(mark) {
   if (mark >= 30) return 2;
   return 1;
 }
+
 export default function APSCalculator() {
   const { setApsScore } = useAuth();
   const navigate = useNavigate();
@@ -29,6 +31,9 @@ export default function APSCalculator() {
   ]);
 
   const [nextId, setNextId] = useState(8);
+  // FIX: Implemented component-level error state
+  const [formError, setFormError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const addSubject = () => {
     setSubjects([...subjects, { id: nextId, name: subjectList[0], mark: '', error: '' }]);
@@ -42,6 +47,7 @@ export default function APSCalculator() {
   };
 
   const updateSubject = (id, field, value) => {
+    setFormError('');
     setSubjects(subjects.map(s => {
       if (s.id === id) {
         if (field === 'mark') {
@@ -59,32 +65,44 @@ export default function APSCalculator() {
   };
 
   const validSubjects = subjects.filter((s) => {
-  const mark = parseFloat(s.mark);
+    const mark = parseFloat(s.mark);
+    return !isNaN(mark) && mark >= 0 && mark <= 100 && s.name !== "Life Orientation";
+  });
 
-  return (
-    !isNaN(mark) &&
-    mark >= 0 &&
-    mark <= 100 &&
-    s.name !== "Life Orientation"
-  );
-});
+  const totalAPS = validSubjects
+    .sort((a, b) => parseFloat(b.mark) - parseFloat(a.mark))
+    .slice(0, 6)
+    .reduce((sum, s) => sum + calculateAPSPoints(parseFloat(s.mark)), 0);
 
-const totalAPS = validSubjects
-  .sort((a, b) => parseFloat(b.mark) - parseFloat(a.mark))
-  .slice(0, 6)
-  .reduce((sum, s) => {
-    return sum + calculateAPSPoints(parseFloat(s.mark));
-  }, 0);
+  const handleSave = async () => {
+    setFormError('');
+    const rawSubjects = subjects.filter(s => s.mark !== '');
+    
+    if (rawSubjects.length < 6) {
+      setFormError('Please enter marks for at least 6 subjects to calculate a valid APS.');
+      return;
+    }
 
-const handleSave = async () => {
-  try {
-    await saveAPS(totalAPS);
-    setApsScore(totalAPS);
-    navigate('/courses');
-  } catch (error) {
-    alert(error.message);
-  }
-};
+    try {
+      setIsSaving(true);
+      
+      // FIX: Format payload for backend server calculation
+      const payload = rawSubjects.map(s => ({
+        name: s.name,
+        percentage: parseFloat(s.mark)
+      }));
+
+      const response = await saveAPS(payload);
+      
+      // Trust backend value over optimistic UI value
+      setApsScore(response.aps_score);
+      navigate('/courses');
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -111,7 +129,7 @@ const handleSave = async () => {
               {subjects.map((subject) => {
                 const mark = parseFloat(subject.mark);
                 const points = !isNaN(mark) && mark >= 0 && mark <= 100 
-                  ? calculateAPSPoints(mark, subject.name) 
+                  ? (subject.name.toLowerCase().includes("life orientation") ? 0 : calculateAPSPoints(mark)) 
                   : '-';
 
                 return (
@@ -180,7 +198,6 @@ const handleSave = async () => {
         </button>
       </div>
 
-      {/* Total APS */}
       <div className="card bg-gradient-to-r from-primary to-blue-800 text-white border-0 mb-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -195,38 +212,24 @@ const handleSave = async () => {
           </div>
           <div className="text-center md:text-right">
             <p className="text-blue-200 text-sm">Subjects entered</p>
-            <p className="text-2xl font-bold">{validSubjects.length}</p>
+            <p className="text-2xl font-bold">{subjects.filter(s => s.mark !== '').length}</p>
           </div>
         </div>
       </div>
 
-      {/* NSC Scale Reference */}
-      <div className="card mb-6">
-        <h3 className="font-bold mb-3 text-sm">NSC Point Scale</h3>
-        <div className="grid grid-cols-4 md:grid-cols-8 gap-2 text-xs">
-          {[
-  { range: '80-100%', pts: 7 },
-  { range: '70-79%', pts: 6 },
-  { range: '60-69%', pts: 5 },
-  { range: '50-59%', pts: 4 },
-  { range: '40-49%', pts: 3 },
-  { range: '30-39%', pts: 2 },
-  { range: '0-29%', pts: 1 },
-].map(item => (
-            <div key={item.pts} className="bg-gray-50 rounded-lg p-2 text-center">
-              <div className="font-bold text-primary">{item.pts} pts</div>
-              <div className="text-gray-500">{item.range}</div>
-            </div>
-          ))}
+      {formError && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+          <AlertCircle className="w-5 h-5" />
+          <span>{formError}</span>
         </div>
-        <p className="text-xs text-gray-400 mt-3">* Life Orientation is capped at a maximum of 4 points</p>
-      </div>
+      )}
 
       <button
         onClick={handleSave}
-        className="w-full md:w-auto btn-primary flex items-center justify-center gap-2"
+        disabled={isSaving}
+        className="w-full md:w-auto btn-primary flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
       >
-        Save & See Recommendations
+        {isSaving ? 'Saving...' : 'Save & See Recommendations'}
         <ArrowRight className="w-5 h-5" />
       </button>
     </div>

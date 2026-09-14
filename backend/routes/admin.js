@@ -64,8 +64,8 @@ function mapUser(row) {
   };
 }
 
-function getUserById(id) {
-  return db
+async function getUserById(id) {
+  return await db
     .prepare(`
       SELECT
         users.id,
@@ -119,7 +119,7 @@ function isValidDate(value) {
 
 router.use(authenticateToken, requireAdmin);
 
-router.get("/users", (req, res) => {
+router.get("/users", async (req, res) => {
   const role = req.query.role ? normalizeRole(req.query.role) : null;
   const search = String(req.query.search || "").trim().toLowerCase();
 
@@ -141,8 +141,8 @@ router.get("/users", (req, res) => {
     if (search) {
       filters.push(`
         (
-          lower(users.first_name || ' ' || users.last_name) LIKE ?
-          OR lower(users.email) LIKE ?
+          LOWER(CONCAT(users.first_name, ' ', users.last_name)) LIKE ?
+          OR LOWER(users.email) LIKE ?
           OR users.id LIKE ?
         )
       `);
@@ -151,7 +151,7 @@ router.get("/users", (req, res) => {
 
     const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
 
-    const users = db
+    const rows = await db
       .prepare(`
         SELECT
           users.id,
@@ -173,10 +173,9 @@ router.get("/users", (req, res) => {
         GROUP BY users.id
         ORDER BY users.created_at DESC, users.id DESC
       `)
-      .all(...params)
-      .map(mapUser);
+      .all(...params);
 
-    res.json({ users });
+    res.json({ users: rows.map(mapUser) });
 
   } catch (error) {
     console.error(error);
@@ -208,7 +207,7 @@ router.post("/users", async (req, res) => {
 
   try {
     const normalizedEmail = email.trim().toLowerCase();
-    const existingUser = db
+    const existingUser = await db
       .prepare("SELECT id FROM users WHERE lower(email) = lower(?)")
       .get(normalizedEmail);
 
@@ -220,8 +219,8 @@ router.post("/users", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const createUser = db.transaction(() => {
-      const result = db
+    const user = await db.transaction(async (tx) => {
+      const result = await tx
         .prepare(`
           INSERT INTO users (first_name, last_name, email, password, role, status)
           VALUES (?, ?, ?, ?, ?, ?)
@@ -236,16 +235,14 @@ router.post("/users", async (req, res) => {
         );
 
       if (role === "student") {
-        db.prepare(`
+        await tx.prepare(`
           INSERT INTO student_profiles (user_id, grade, aps_score)
           VALUES (?, ?, ?)
         `).run(result.lastInsertRowid, grade || "Grade 12", parsedAps);
       }
 
-      return getUserById(result.lastInsertRowid);
+      return await getUserById(result.lastInsertRowid);
     });
-
-    const user = createUser();
 
     res.status(201).json({
       message: "User created successfully.",
@@ -261,7 +258,7 @@ router.post("/users", async (req, res) => {
   }
 });
 
-router.patch("/users/:id/status", (req, res) => {
+router.patch("/users/:id/status", async (req, res) => {
   const userId = Number(req.params.id);
   const status = normalizeStatus(req.body.status);
 
@@ -284,7 +281,7 @@ router.patch("/users/:id/status", (req, res) => {
   }
 
   try {
-    const result = db
+    const result = await db
       .prepare("UPDATE users SET status = ? WHERE id = ?")
       .run(status, userId);
 
@@ -294,9 +291,11 @@ router.patch("/users/:id/status", (req, res) => {
       });
     }
 
+    const user = await getUserById(userId);
+
     res.json({
       message: "User status updated successfully.",
-      user: mapUser(getUserById(userId))
+      user: mapUser(user)
     });
 
   } catch (error) {
@@ -308,7 +307,7 @@ router.patch("/users/:id/status", (req, res) => {
   }
 });
 
-router.delete("/users/:id", (req, res) => {
+router.delete("/users/:id", async (req, res) => {
   const userId = Number(req.params.id);
 
   if (!Number.isInteger(userId) || userId <= 0) {
@@ -324,14 +323,11 @@ router.delete("/users/:id", (req, res) => {
   }
 
   try {
-    const removeUser = db.transaction(() => {
-      db.prepare("DELETE FROM applications WHERE user_id = ?").run(userId);
-      db.prepare("DELETE FROM student_profiles WHERE user_id = ?").run(userId);
-
-      return db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+    const result = await db.transaction(async (tx) => {
+      await tx.prepare("DELETE FROM applications WHERE user_id = ?").run(userId);
+      await tx.prepare("DELETE FROM student_profiles WHERE user_id = ?").run(userId);
+      return await tx.prepare("DELETE FROM users WHERE id = ?").run(userId);
     });
-
-    const result = removeUser();
 
     if (result.changes === 0) {
       return res.status(404).json({
@@ -352,7 +348,7 @@ router.delete("/users/:id", (req, res) => {
   }
 });
 
-router.get("/reports", (req, res) => {
+router.get("/reports", async (req, res) => {
   const type = req.query.type || "applications";
   const startDate = req.query.start_date || "";
   const endDate = req.query.end_date || "";
@@ -372,7 +368,7 @@ router.get("/reports", (req, res) => {
   try {
     if (type === "applications") {
       const { clause, params } = dateFilters("submitted_at", startDate, endDate);
-      const stats = db
+      const stats = await db
         .prepare(`
           SELECT
             COUNT(*) AS total,
@@ -403,7 +399,7 @@ router.get("/reports", (req, res) => {
     }
 
     const { clause, params } = dateFilters("created_at", startDate, endDate);
-    const stats = db
+    const stats = await db
       .prepare(`
         SELECT
           COUNT(*) AS total,

@@ -1,32 +1,51 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Calculator, Building2, BookOpen, FileText, ChevronRight, CheckCircle2, Circle, Lock, Award, TrendingUp } from 'lucide-react';
-import { getMyProfile } from '../services/api';
+import { getMyProfile, getCourses } from '../services/api.js';
+import { 
+  Calculator, Building2, BookOpen, FileText, ChevronRight, 
+  CheckCircle2, Circle, Lock, Award, TrendingUp, Loader2 
+} from 'lucide-react';
+
 export default function StudentDashboard() {
   const { setApsScore } = useAuth();
-
+  
   const [profile, setProfile] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadDashboardData = async () => {
       try {
-        const data = await getMyProfile();
-        setProfile(data.user);
-        setApsScore(data.user.aps_score);
+        setLoading(true);
+        // Fetch the user profile and the course catalog at the same time
+        const [profileData, courseData] = await Promise.all([
+          getMyProfile(),
+          getCourses()
+        ]);
+        
+        setProfile(profileData.user);
+        setApsScore(profileData.user.aps_score);
+        setCourses(courseData.courses || []);
       } catch (error) {
-        console.error("Failed to load profile:", error);
+        console.error("Failed to load dashboard data:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    loadProfile();
+    loadDashboardData();
   }, [setApsScore]);
+
+  // Dynamically calculate based on the fetched API data
+  const currentAps = profile?.aps_score || 0;
+  const qualifyingCount = courses.filter(course => currentAps >= course.minAps).length;
 
   const steps = [
     { num: 1, label: 'Calculate APS', desc: 'Enter your matric subjects', active: true, path: '/calculator' },
-    { num: 2, label: 'Browse Courses', desc: 'Find qualifying courses', active: false, path: '/courses' },
-    { num: 3, label: 'Select Universities', desc: 'Choose institutions', active: false, path: '/universities' },
-    { num: 4, label: 'Submit Applications', desc: 'Apply to selected courses', active: false, path: '/apply' },
+    { num: 2, label: 'Browse Courses', desc: 'Find qualifying courses', active: (currentAps > 0), path: '/courses' },
+    { num: 3, label: 'Select Universities', desc: 'Choose institutions', active: (currentAps > 0), path: '/universities' },
+    { num: 4, label: 'Submit Applications', desc: 'Apply to selected courses', active: (currentAps > 0), path: '/apply' },
   ];
 
   const quickNav = [
@@ -36,12 +55,21 @@ export default function StudentDashboard() {
     { icon: FileText, label: 'Applications', desc: 'Track your status', path: '/track', color: 'bg-amber-50 text-amber-600' },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-primary">
+        <Loader2 className="w-10 h-10 animate-spin mb-4" />
+        <p className="font-semibold">Loading your dashboard...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-heading font-bold mb-1">
-  Welcome back, {profile?.first_name || "Student"}
-</h1>
+          Welcome back, {profile?.first_name || "Student"}
+        </h1>
         <p className="text-gray-500">Here's your university journey progress</p>
       </div>
 
@@ -55,7 +83,7 @@ export default function StudentDashboard() {
             <div>
               <p className="text-blue-200 text-sm font-medium">Your APS Score</p>
               <div className="flex items-baseline gap-2">
-             <span className="text-4xl font-bold">{profile?.aps_score ?? 0}</span>
+                <span className="text-4xl font-bold">{currentAps}</span>
                 <span className="text-blue-200">/ 42</span>
               </div>
             </div>
@@ -64,7 +92,7 @@ export default function StudentDashboard() {
             <TrendingUp className="w-5 h-5 text-accent" />
             <div>
               <p className="text-sm text-blue-200">You qualify for</p>
-              <p className="font-bold text-lg">12 courses</p>
+              <p className="font-bold text-lg">{qualifyingCount} courses</p>
             </div>
           </div>
         </div>

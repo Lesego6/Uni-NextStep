@@ -1,135 +1,124 @@
+const fs = require("fs");
 const path = require("path");
-const Database = require("better-sqlite3");
-const bcrypt = require("bcrypt");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
-const db = new Database(path.join(__dirname, "unextstep.db"));
-db.pragma("foreign_keys = ON");
+const mysql = require("mysql2/promise");
 
-console.log("Uni NextStep database connected successfully!");
+const dbHost = process.env.DB_HOST || "localhost";
+const dbPort = Number(process.env.DB_PORT || 3306);
+const dbUser = process.env.DB_USER || "root";
+const dbPassword = process.env.DB_PASSWORD || "";
+const dbName = process.env.DB_NAME || "uni_nextstep";
 
-db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        first_name TEXT NOT NULL,
-        last_name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'student',
-        status TEXT NOT NULL DEFAULT 'Active',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-`);
+async function ensureDatabaseAndSchema() {
+  const connectionConfig = {
+    host: dbHost,
+    port: dbPort,
+    user: dbUser,
+    password: dbPassword,
+    multipleStatements: false
+  };
 
-function ensureColumn(tableName, columnName, columnDefinition) {
-  const columns = db
-    .prepare(`PRAGMA table_info(${tableName})`)
-    .all()
-    .map((column) => column.name);
+  const rootConnection = await mysql.createConnection(connectionConfig);
+  await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+  await rootConnection.end();
 
-  if (!columns.includes(columnName)) {
-    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+  const databaseConnection = await mysql.createConnection({
+    ...connectionConfig,
+    database: dbName,
+    namedPlaceholders: false
+  });
+
+  const schemaSql = fs.readFileSync(path.join(__dirname, "db", "mysql.example.sql"), "utf8");
+  const statements = schemaSql
+    .split(/;\s*\n|;\s*$/m)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+
+  for (const statement of statements) {
+    await databaseConnection.query(statement);
   }
+
+  await databaseConnection.end();
 }
 
-ensureColumn("users", "status", "TEXT NOT NULL DEFAULT 'Active'");
+(async () => {
+  await ensureDatabaseAndSchema();
+})();
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS student_profiles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL UNIQUE,
-    grade TEXT NOT NULL,
-    province TEXT,
-    school TEXT,
-    aps_score INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  )
-`);
+const pool = mysql.createPool({
+  host: dbHost,
+  port: dbPort,
+  user: dbUser,
+  password: dbPassword,
+  database: dbName,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  namedPlaceholders: false
+});
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS applications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reference_number TEXT UNIQUE NOT NULL,
-    user_id INTEGER NOT NULL,
-    course_id INTEGER,
-    course_name TEXT NOT NULL,
-    university_id INTEGER,
-    university_name TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'Pending'
-      CHECK (status IN ('Pending', 'Accepted', 'Rejected')),
-    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  )
-`);
+const db = {
+  prepare(sql) {
+    return {
+      async get(...values) {
+        const [rows] = await pool.execute(sql, values);
+        return rows[0] || undefined;
+      },
+      async all(...values) {
+        const [rows] = await pool.execute(sql, values);
+        return rows;
+      },
+      async run(...values) {
+        const [result] = await pool.execute(sql, values);
+        return {
+          changes: result.affectedRows || 0,
+          lastInsertRowid: result.insertId || 0
+        };
+      }
+    };
+  },
+  async exec(sql) {
+    await pool.query(sql);
+  },
+  async transaction(callback) {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+      const tx = {
+        prepare(sql) {
+          return {
+            async get(...values) {
+              const [rows] = await connection.execute(sql, values);
+              return rows[0] || undefined;
+            },
+            async all(...values) {
+              const [rows] = await connection.execute(sql, values);
+              return rows;
+            },
+            async run(...values) {
+              const [result] = await connection.execute(sql, values);
+              return {
+                changes: result.affectedRows || 0,
+                lastInsertRowid: result.insertId || 0
+              };
+            }
+          };
+        }
+      };
 
-db.exec(`
-  CREATE INDEX IF NOT EXISTS idx_applications_user_id
-  ON applications (user_id)
-`);
-
-db.exec(`
-  CREATE INDEX IF NOT EXISTS idx_applications_status
-  ON applications (status)
-`);
-
-console.log("Users table is ready!");
-
-db.exec(`
-  INSERT OR IGNORE INTO student_profiles (user_id, grade, aps_score)
-  SELECT id, 'Grade 12', 0
-  FROM users
-  WHERE role = 'student'
-`);
-
-db.exec(`
-  UPDATE student_profiles
-  SET aps_score = 0
-  WHERE aps_score IS NULL
-`);
-
-db.exec(`
-  UPDATE users
-  SET status = 'Active'
-  WHERE status IS NULL
-`);
-
-function seedAdminUser() {
-  const existingAdmin = db
-    .prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
-    .get();
-
-  if (existingAdmin) {
-    console.log("Admin user is ready!");
-    return;
+      const result = await callback(tx);
+      await connection.commit();
+      return result;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
+};
 
-  const adminEmail = (process.env.ADMIN_EMAIL || "admin@uninextstep.co.za")
-    .trim()
-    .toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
-
-  const existingUser = db
-    .prepare("SELECT id FROM users WHERE lower(email) = lower(?)")
-    .get(adminEmail);
-
-  if (existingUser) {
-    db.prepare("UPDATE users SET role = 'admin', status = 'Active' WHERE id = ?").run(existingUser.id);
-    console.log("Existing admin email promoted to admin role!");
-    return;
-  }
-
-  const hashedPassword = bcrypt.hashSync(adminPassword, 10);
-
-  db.prepare(`
-    INSERT INTO users (first_name, last_name, email, password, role, status)
-    VALUES (?, ?, ?, ?, 'admin', 'Active')
-  `).run("System", "Admin", adminEmail, hashedPassword);
-
-  console.log("Default admin user created!");
-}
-
-seedAdminUser();
+console.log("Uni NextStep database connected successfully via MySQL adapter!");
 
 module.exports = db;

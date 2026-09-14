@@ -1,18 +1,41 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { courses } from '../data/courses.js';
-import { universities } from '../data/universities.js';
-import { Search, Filter, BookOpen, MapPin, GraduationCap, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { getCourses, getUniversities } from '../services/api.js';
+import { Search, Filter, BookOpen, MapPin, GraduationCap, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 
 const fields = ['All', 'Health Sciences', 'Engineering', 'Science & Technology', 'Commerce', 'Law', 'Humanities', 'Education', 'Agriculture'];
 const provinces = ['All', 'Western Cape', 'Gauteng', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo', 'North West', 'Free State', 'Northern Cape', 'Mpumalanga'];
 
 export default function CourseRecommendations() {
   const { apsScore } = useAuth();
+  const navigate = useNavigate();
+  const [courses, setCourses] = useState([]);
+  const [universities, setUniversities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedField, setSelectedField] = useState('All');
   const [selectedProvince, setSelectedProvince] = useState('All');
   const [selectedTag, setSelectedTag] = useState('All');
+
+  useEffect(() => {
+    const loadCatalog = async () => {
+      try {
+        setLoading(true);
+        // Fetch both datasets concurrently
+        const [courseData, uniData] = await Promise.all([getCourses(), getUniversities()]);
+        setCourses(courseData.courses || []);
+        setUniversities(uniData.universities || []);
+      } catch (err) {
+        setError("Failed to load course catalog. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadCatalog();
+  }, []);
 
   const filteredCourses = useMemo(() => {
     return courses.filter(course => {
@@ -22,17 +45,31 @@ export default function CourseRecommendations() {
 
       let matchesProvince = true;
       if (selectedProvince !== 'All') {
-        const courseUniversities = course.universities.map(id => universities.find(u => u.id === id));
+        const courseUniversities = (course.universities || []).map(id => universities.find(u => u.id === id));
         matchesProvince = courseUniversities.some(u => u?.province === selectedProvince);
       }
 
       return matchesSearch && matchesField && matchesProvince && matchesTag;
     });
-  }, [searchTerm, selectedField, selectedProvince, selectedTag]);
+  }, [courses, universities, searchTerm, selectedField, selectedProvince, selectedTag]);
 
   const getUniversitiesForCourse = (course) => {
-    return course.universities.map(id => universities.find(u => u.id === id)).filter(Boolean);
+    return (course.universities || []).map(id => universities.find(u => u.id === id)).filter(Boolean);
   };
+
+  const handleApply = (course) => {
+    if (!course || !course.id) return;
+    navigate(`/apply?courseId=${encodeURIComponent(course.id)}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-primary">
+        <Loader2 className="w-10 h-10 animate-spin mb-4" />
+        <p className="font-semibold">Loading course catalog...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -42,9 +79,15 @@ export default function CourseRecommendations() {
           Course Recommendations
         </h1>
         <p className="text-gray-500">
-          Based on your APS score of <span className="font-bold text-primary">{apsScore}</span> — showing courses you may qualify for
+          Based on your APS score of <span className="font-bold text-primary">{apsScore}</span>
         </p>
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg text-sm font-medium">
+          {error}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="card mb-6">
@@ -101,22 +144,13 @@ export default function CourseRecommendations() {
         ))}
       </div>
 
-      {/* Count */}
-      <div className="flex items-center gap-4 mb-6 text-sm text-gray-500">
-        <span>Courses: <strong className="text-primary">{filteredCourses.length}</strong></span>
-        <span>Universities: <strong className="text-primary">26</strong></span>
-      </div>
-
-      {/* Course Cards */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCourses.map(course => {
           const courseUniversities = getUniversitiesForCourse(course);
           const qualifies = apsScore >= course.minAps;
 
           return (
-            <div key={course.id} className={`card hover:shadow-md transition-all ${
-              qualifies ? 'border-l-4 border-l-accent' : 'border-l-4 border-l-gray-200'
-            }`}>
+            <div key={course.id} className={`card hover:shadow-md transition-all ${qualifies ? 'border-l-4 border-l-accent' : 'border-l-4 border-l-gray-200'}`}>
               <div className="flex items-start justify-between mb-3">
                 <span className="badge-accent">{course.field}</span>
                 {qualifies ? (
@@ -124,43 +158,22 @@ export default function CourseRecommendations() {
                 ) : (
                   <div className="relative group">
                     <AlertTriangle className="w-5 h-5 text-amber-500" />
-                    <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-48 bg-gray-800 text-white text-xs rounded-lg p-2 z-10">
-                      Your APS ({apsScore}) is below the minimum ({course.minAps})
-                    </div>
                   </div>
                 )}
               </div>
-
               <h3 className="font-bold text-lg mb-2">{course.name}</h3>
-
               <div className="space-y-2 mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <GraduationCap className="w-4 h-4 text-primary" />
                   <span>Min APS: <strong className={qualifies ? 'text-accent' : 'text-red-500'}>{course.minAps}</strong></span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  <span>Offered at {courseUniversities.length} universities</span>
-                </div>
               </div>
-
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {courseUniversities.slice(0, 3).map(u => (
-                  <span key={u.id} className="badge-primary text-xs">{u.abbr}</span>
-                ))}
-                {courseUniversities.length > 3 && (
-                  <span className="badge text-xs bg-gray-100 text-gray-500">+{courseUniversities.length - 3}</span>
-                )}
-              </div>
-
               <button
                 disabled={!qualifies}
+                onClick={() => handleApply(course)}
                 className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${
-                  qualifies
-                    ? 'bg-accent text-white hover:bg-teal-600 shadow-md'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  qualifies ? 'bg-accent text-white hover:bg-teal-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}
-                title={!qualifies ? `Your APS (${apsScore}) is below the minimum (${course.minAps})` : ''}
               >
                 {qualifies ? 'Apply Now' : 'APS Too Low'}
               </button>
@@ -168,14 +181,6 @@ export default function CourseRecommendations() {
           );
         })}
       </div>
-
-      {filteredCourses.length === 0 && (
-        <div className="text-center py-16">
-          <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-gray-400 mb-2">No courses found</h3>
-          <p className="text-gray-400">Try adjusting your filters or search terms</p>
-        </div>
-      )}
     </div>
   );
 }

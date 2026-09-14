@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { loginUser } from "../services/api";
+import { loginUser, logoutUser } from "../services/api";
 
 const AuthContext = createContext();
 
@@ -11,21 +11,27 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
+    const storedToken = localStorage.getItem("token");
+    const storedAps = Number(localStorage.getItem("apsScore") || 0);
 
-    if (token && storedUser) {
+    if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
 
         setUser(parsedUser);
-        setApsScore(parsedUser.aps_score ?? 0);
+        setApsScore(Number(parsedUser.aps_score ?? storedAps ?? 0));
         setIsLoggedIn(parsedUser.role === "student");
         setIsAdmin(parsedUser.role === "admin");
       } catch {
-        localStorage.removeItem("token");
         localStorage.removeItem("user");
       }
+    } else if (storedAps) {
+      setApsScore(storedAps);
+    }
+
+    if (!storedToken) {
+      localStorage.removeItem("token");
     }
 
     setLoading(false);
@@ -42,8 +48,12 @@ export function AuthProvider({ children }) {
       throw new Error("Please use the admin portal for admin accounts.");
     }
 
-    localStorage.setItem("token", data.token);
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+    }
+
     localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.setItem("apsScore", String(data.user.aps_score ?? 0));
 
     setUser(data.user);
     setApsScore(data.user.aps_score ?? 0);
@@ -59,14 +69,23 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
+  const logout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // The server-side cookie clear is best effort for production sessions.
+    }
+
+    const retainedAps = Number(apsScore || Number(localStorage.getItem("apsScore") || 0));
+    localStorage.setItem("apsScore", String(retainedAps));
+
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
 
     setIsLoggedIn(false);
     setIsAdmin(false);
     setUser(null);
-    setApsScore(0);
+    setApsScore(retainedAps);
   };
 
   return (
