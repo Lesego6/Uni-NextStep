@@ -3,7 +3,7 @@ const express = require("express");
 const db = require("../database");
 const authenticateToken = require("../middleware/authMiddleware");
 const { ensureSeededCatalog } = require("../utils/catalogSeed");
-const { sendStatusEmail } = require("../utils/emailNotifications");
+const { sendApplicationReceivedEmail, sendStatusEmail } = require("../utils/emailNotifications");
 
 const router = express.Router();
 const VALID_STATUSES = ["Pending", "Accepted", "Rejected"];
@@ -481,6 +481,24 @@ router.post("/", authenticateToken, requireRole("student"), async (req, res, nex
         : result.skipped.length > 0
           ? "Applications submitted successfully. Some applications were skipped."
           : "Application submitted successfully.";
+
+      if (result.applications.length > 0) {
+        const student = await db.prepare(`
+          SELECT first_name, last_name, email
+          FROM users
+          WHERE id = ?
+          LIMIT 1
+        `).get(req.user.id);
+        const studentName = `${student?.first_name || ""} ${student?.last_name || ""}`.trim() || "Student";
+
+        for (const application of result.applications) {
+          await sendApplicationReceivedEmail({
+            ...application,
+            student_name: studentName,
+            student_email: student?.email || req.user.email
+          });
+        }
+      }
 
       res.status(result.applications.length > 0 ? 201 : 200).json({
         message,

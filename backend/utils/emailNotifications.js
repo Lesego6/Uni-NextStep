@@ -19,15 +19,19 @@ function formatStatus(status) {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-function getTemplateId(status) {
+function getStatusTemplateId(status) {
   const statusTemplateKey = STATUS_TEMPLATE_KEYS[normalizeStatus(status)];
   return (statusTemplateKey && process.env[statusTemplateKey]) || process.env.EMAILJS_TEMPLATE_ID;
 }
 
-function isConfigured(status) {
+function getReceivedTemplateId() {
+  return process.env.EMAILJS_RECEIVED_TEMPLATE_ID || process.env.EMAILJS_TEMPLATE_ID;
+}
+
+function isConfigured(templateId) {
   return Boolean(
     process.env.EMAILJS_SERVICE_ID &&
-    getTemplateId(status) &&
+    templateId &&
     process.env.EMAILJS_PUBLIC_KEY
   );
 }
@@ -64,17 +68,24 @@ function getStatusCopy(application) {
   };
 }
 
-async function sendStatusEmail(application) {
-  if (!isConfigured(application.status)) {
-    console.warn("EmailJS status email skipped because EMAILJS_* environment variables are not configured.");
+function getReceivedCopy() {
+  return {
+    title: "Application received",
+    message: "We received your Uni NextStep application.",
+    detailTitle: "What happens next",
+    detail: "Your application is now pending review. We will email you when the status changes."
+  };
+}
+
+async function sendEmail(templateId, application, copy, statusLabel) {
+  if (!isConfigured(templateId)) {
+    console.warn("EmailJS email skipped because EMAILJS_* environment variables are not configured.");
     return;
   }
 
-  const statusLabel = formatStatus(application.status);
-  const copy = getStatusCopy(application);
   const payload = {
     service_id: process.env.EMAILJS_SERVICE_ID,
-    template_id: getTemplateId(application.status),
+    template_id: templateId,
     user_id: process.env.EMAILJS_PUBLIC_KEY,
     template_params: {
       to_email: application.student_email,
@@ -107,11 +118,20 @@ async function sendStatusEmail(application) {
 
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`EmailJS status email failed: ${response.status} ${text}`);
+      console.warn(`EmailJS email failed: ${response.status} ${text}`);
     }
   } catch (error) {
-    console.warn("EmailJS status email failed:", error.message);
+    console.warn("EmailJS email failed:", error.message);
   }
 }
 
-module.exports = { sendStatusEmail };
+async function sendApplicationReceivedEmail(application) {
+  await sendEmail(getReceivedTemplateId(), application, getReceivedCopy(), "Received");
+}
+
+async function sendStatusEmail(application) {
+  const statusLabel = formatStatus(application.status);
+  await sendEmail(getStatusTemplateId(application.status), application, getStatusCopy(application), statusLabel);
+}
+
+module.exports = { sendApplicationReceivedEmail, sendStatusEmail };
