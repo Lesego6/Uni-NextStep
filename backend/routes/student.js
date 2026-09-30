@@ -1,36 +1,9 @@
 const express = require("express");
 const db = require("../database");
 const authenticateToken = require("../middleware/authMiddleware");
+const { calculateAps } = require("../utils/aps");
 
 const router = express.Router();
-
-// Helper algorithm to compute official NSC APS
-function calculateAps(subjects) {
-    let totalPoints = 0;
-    
-    subjects.forEach((subject) => {
-        const mark = Number(subject.percentage);
-        if (isNaN(mark)) return;
-        
-        let points = 0;
-        if (mark >= 80) points = 7;
-        else if (mark >= 70) points = 6;
-        else if (mark >= 60) points = 5;
-        else if (mark >= 50) points = 4;
-        else if (mark >= 40) points = 3;
-        else if (mark >= 30) points = 2;
-        else points = 1;
-
-        // Exclude Life Orientation strictly for normal APS conversion
-        if (subject.name && subject.name.toLowerCase().includes("life orientation")) {
-            points = 0; 
-        }
-
-        totalPoints += points;
-    });
-
-    return Math.min(totalPoints, 42); // standard max 6 subjects x 7 points
-}
 
 // Accepts an array of objects: { subjects: [{ name: "Maths", percentage: 75 }, ...] }
 router.post("/aps", authenticateToken, async (req, res, next) => {
@@ -40,8 +13,22 @@ router.post("/aps", authenticateToken, async (req, res, next) => {
         return res.status(400).json({ message: "Please provide an array of subjects with percentages." });
     }
 
+    const sanitizedSubjects = subjects.map((subject) => ({
+        name: typeof subject?.name === "string" ? subject.name.trim() : "",
+        percentage: Number(subject?.percentage)
+    }));
+
+    if (sanitizedSubjects.some((subject) => !subject.name || Number.isNaN(subject.percentage) || subject.percentage < 0 || subject.percentage > 100)) {
+        return res.status(400).json({ message: "Each subject must include a valid name and a percentage from 0 to 100." });
+    }
+
+    const nonLifeOrientation = sanitizedSubjects.filter((subject) => !/life orientation/i.test(subject.name));
+    if (nonLifeOrientation.length < 6) {
+        return res.status(400).json({ message: "Students must provide at least 6 non-Life Orientation subjects." });
+    }
+
     try {
-        const calculatedScore = calculateAps(subjects);
+        const calculatedScore = calculateAps(sanitizedSubjects);
 
         await db.prepare(`
             UPDATE student_profiles

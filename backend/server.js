@@ -15,6 +15,7 @@ const authenticateToken = require("./middleware/authMiddleware");
 const app = express();
 const PORT = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === "production";
+app.set("trust proxy", 1);
 
 if (!process.env.JWT_SECRET) {
     console.error("FATAL ERROR: JWT_SECRET environment variable is not set.");
@@ -42,7 +43,7 @@ app.use(cors({
     },
     credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
@@ -55,7 +56,7 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-    res.json({ message: "Uni NextStep API is running 🚀" });
+    res.json({ message: "Uni NextStep API is running." });
 });
 
 app.get("/ready", async (req, res) => {
@@ -65,13 +66,6 @@ app.get("/ready", async (req, res) => {
     } catch (error) {
         res.status(503).json({ status: "not-ready", service: "uni-nextstep-api", message: error.message });
     }
-});
-
-app.get("/api/profile", authenticateToken, (req, res) => {
-    res.json({
-        message: "You accessed a protected route!",
-        user: req.user
-    });
 });
 
 app.use((err, req, res, next) => {
@@ -93,19 +87,27 @@ async function ensureAdminUser() {
     }
 
     try {
+        const normalizedEmail = adminEmail.trim().toLowerCase();
         const existingAdmin = await db.prepare(`
             SELECT id FROM users WHERE lower(email) = lower(?) AND role = ? LIMIT 1
-        `).get(adminEmail, "admin");
+        `).get(normalizedEmail, "admin");
+
+        const passwordHash = await bcrypt.hash(adminPassword, 10);
 
         if (existingAdmin) {
+            await db.prepare(`
+                UPDATE users
+                SET password = ?, status = ?, first_name = ?, last_name = ?
+                WHERE id = ?
+            `).run(passwordHash, "Active", "System", "Admin", existingAdmin.id);
+            console.log("Bootstrap admin user updated successfully.");
             return;
         }
 
-        const passwordHash = await bcrypt.hash(adminPassword, 10);
         await db.prepare(`
             INSERT INTO users (first_name, last_name, email, password, role, status)
             VALUES (?, ?, ?, ?, ?, ?)
-        `).run("System", "Admin", adminEmail.trim().toLowerCase(), passwordHash, "admin", "Active");
+        `).run("System", "Admin", normalizedEmail, passwordHash, "admin", "Active");
 
         console.log("Bootstrap admin user created successfully.");
     } catch (error) {
@@ -114,6 +116,7 @@ async function ensureAdminUser() {
 }
 
 async function start() {
+    await db.ready;
     await ensureAdminUser();
     app.listen(PORT, () => {
         console.log(`Uni NextStep backend running on http://localhost:${PORT}`);

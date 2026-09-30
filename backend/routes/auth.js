@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
 const db = require("../database");
+const authenticateToken = require("../middleware/authMiddleware");
 require("dotenv").config();
 
 const router = express.Router();
@@ -17,14 +18,28 @@ const authLimiter = rateLimit({
 
 router.post("/register", authLimiter, async (req, res, next) => {
   const { first_name, last_name, email, password, grade } = req.body;
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!first_name || !last_name || !email || !password || !grade) {
     return res.status(400).json({ message: "All fields are required." });
   }
 
+  if (!emailPattern.test(String(email).trim())) {
+    return res.status(400).json({ message: "Please provide a valid email address." });
+  }
+
+  if (String(password).length < 8) {
+    return res.status(400).json({ message: "Password must be at least 8 characters long." });
+  }
+
+  const validGrades = ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "Matriculated"];
+  if (!validGrades.includes(String(grade))) {
+    return res.status(400).json({ message: "Please provide a valid grade." });
+  }
+
   try {
     const normalizedEmail = email.trim().toLowerCase();
-    const existingUser = await db.prepare("SELECT id FROM users WHERE lower(email) = lower(?)").get(normalizedEmail);
+    const existingUser = await db.prepare("SELECT id FROM users WHERE email = ?").get(normalizedEmail);
 
     if (existingUser) {
       return res.status(409).json({ message: "A user with this email already exists." });
@@ -32,8 +47,8 @@ router.post("/register", authLimiter, async (req, res, next) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.prepare(`
-        INSERT INTO users (first_name, last_name, email, password)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO users (first_name, last_name, email, password, role)
+        VALUES (?, ?, ?, ?, 'student')
       `).run(first_name.trim(), last_name.trim(), normalizedEmail, hashedPassword);
 
     await db.prepare(`
@@ -82,7 +97,7 @@ router.post("/login", authLimiter, async (req, res, next) => {
 
     res.cookie("jwt", token, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: isProduction ? "none" : "lax",
       secure: isProduction,
       path: "/",
       maxAge: 1000 * 60 * 60 * 2
@@ -108,10 +123,45 @@ router.post("/login", authLimiter, async (req, res, next) => {
   }
 });
 
+router.get("/me", authenticateToken, async (req, res, next) => {
+  try {
+    const user = await db.prepare(`
+      SELECT users.*, student_profiles.grade, student_profiles.aps_score
+      FROM users
+      LEFT JOIN student_profiles ON student_profiles.user_id = users.id
+      WHERE users.id = ?
+    `).get(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (user.status !== "Active") {
+      return res.status(403).json({ message: "This account is inactive. Please contact an administrator." });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        name: `${user.first_name} ${user.last_name}`.trim(),
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        grade: user.grade || null,
+        aps_score: user.aps_score ?? 0
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/logout", (req, res) => {
   res.clearCookie("jwt", {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: isProduction ? "none" : "lax",
     secure: isProduction,
     path: "/"
   });

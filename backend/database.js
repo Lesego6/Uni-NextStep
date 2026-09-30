@@ -10,6 +10,22 @@ const dbUser = process.env.DB_USER || "root";
 const dbPassword = process.env.DB_PASSWORD || "";
 const dbName = process.env.DB_NAME || "uni_nextstep";
 
+async function ensureColumn(connection, tableName, columnName, definition) {
+  const [columns] = await connection.query(
+    `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = ? AND table_name = ? AND column_name = ?
+      LIMIT 1
+    `,
+    [dbName, tableName, columnName]
+  );
+
+  if (columns.length === 0) {
+    await connection.query(`ALTER TABLE \`${tableName}\` ADD COLUMN ${definition}`);
+  }
+}
+
 async function ensureDatabaseAndSchema() {
   const connectionConfig = {
     host: dbHost,
@@ -29,29 +45,25 @@ async function ensureDatabaseAndSchema() {
     namedPlaceholders: false
   });
 
-  const [tables] = await databaseConnection.query(
-    `SELECT table_name FROM information_schema.tables WHERE table_schema = ? LIMIT 1`,
-    [dbName]
-  );
+  const schemaPath = path.join(__dirname, "db", "schema.sql");
+  const schemaSql = fs.readFileSync(schemaPath, "utf8");
+  const statements = schemaSql
+    .split(/;\s*\n|;\s*$/m)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
 
-  if (tables.length === 0) {
-    const schemaSql = fs.readFileSync(path.join(__dirname, "db", "mysql.example.sql"), "utf8");
-    const statements = schemaSql
-      .split(/;\s*\n|;\s*$/m)
-      .map((statement) => statement.trim())
-      .filter(Boolean);
-
-    for (const statement of statements) {
-      await databaseConnection.query(statement);
-    }
+  for (const statement of statements) {
+    await databaseConnection.query(statement);
   }
+
+  await ensureColumn(databaseConnection, "applications", "rejection_reason", "`rejection_reason` VARCHAR(255)");
+  await ensureColumn(databaseConnection, "applications", "status_note", "`status_note` TEXT");
+  await ensureColumn(databaseConnection, "applications", "status_updated_at", "`status_updated_at` TIMESTAMP NULL DEFAULT NULL");
 
   await databaseConnection.end();
 }
 
-(async () => {
-  await ensureDatabaseAndSchema();
-})();
+const ready = ensureDatabaseAndSchema();
 
 const pool = mysql.createPool({
   host: dbHost,
@@ -126,6 +138,7 @@ const db = {
   }
 };
 
-console.log("Uni NextStep database connected successfully via MySQL adapter!");
+db.ready = ready;
 
 module.exports = db;
+module.exports.ready = ready;

@@ -14,6 +14,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
+import SelectMenu from '../components/SelectMenu.jsx';
 
 const reportStyles = {
   applications: {
@@ -104,19 +105,19 @@ export default function AdminReports() {
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Report Type</label>
-              <select
+              <SelectMenu
+                label="Report Type"
                 value={reportType}
-                onChange={(e) => {
-                  setReportType(e.target.value);
+                options={[
+                  { value: 'applications', label: 'Applications' },
+                  { value: 'users', label: 'User Activity' },
+                ]}
+                onChange={(value) => {
+                  setReportType(value);
                   setReport(null);
                   setError('');
                 }}
-                className="input-field"
-              >
-                <option value="applications">Applications</option>
-                <option value="users">User Activity</option>
-              </select>
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>

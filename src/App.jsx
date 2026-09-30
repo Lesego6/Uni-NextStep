@@ -7,9 +7,11 @@ import APSCalculator from './pages/APSCalculator.jsx';
 import CourseRecommendations from './pages/CourseRecommendations.jsx';
 import UniversityBrowser from './pages/UniversityBrowser.jsx';
 import ApplicationPage from './pages/ApplicationPage.jsx';
+import ApplicationDocuments from './pages/ApplicationDocuments.jsx';
 import ApplicationTracker from './pages/ApplicationTracker.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
 import AdminUserManagement from './pages/AdminUserManagement.jsx';
+import AdminApplications from './pages/AdminApplications.jsx';
 import AdminReports from './pages/AdminReports.jsx';
 import StudentNav from './components/StudentNav.jsx';
 import AdminNav from './components/AdminNav.jsx';
@@ -34,6 +36,20 @@ function AdminRoute({ children }) {
   return isAdmin ? children : <Navigate to="/admin" replace />;
 }
 
+function PublicAuthRoute({ children }) {
+  const { isAuthenticated, isAdmin, loading } = useAuth();
+
+  if (loading) {
+    return <RouteLoading />;
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to={isAdmin ? "/admin/users" : "/dashboard"} replace />;
+  }
+
+  return children;
+}
+
 function RouteLoading() {
   return (
     <div className="min-h-screen flex items-center justify-center text-sm font-semibold text-primary">
@@ -52,15 +68,17 @@ function App() {
       <main className={isLoggedIn || isAdmin ? 'pt-16' : ''}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/auth" element={<PublicAuthRoute><AuthPage /></PublicAuthRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
           <Route path="/calculator" element={<ProtectedRoute><APSCalculator /></ProtectedRoute>} />
           <Route path="/courses" element={<ProtectedRoute><CourseRecommendations /></ProtectedRoute>} />
           <Route path="/universities" element={<ProtectedRoute><UniversityBrowser /></ProtectedRoute>} />
+          <Route path="/documents" element={<ProtectedRoute><ApplicationDocuments /></ProtectedRoute>} />
           <Route path="/apply" element={<ProtectedRoute><ApplicationPage /></ProtectedRoute>} />
           <Route path="/track" element={<ProtectedRoute><ApplicationTracker /></ProtectedRoute>} />
-          <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/admin" element={<PublicAuthRoute><AdminLogin /></PublicAuthRoute>} />
           <Route path="/admin/users" element={<AdminRoute><AdminUserManagement /></AdminRoute>} />
+          <Route path="/admin/applications" element={<AdminRoute><AdminApplications /></AdminRoute>} />
           <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
         </Routes>
       </main>

@@ -1,109 +1,88 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { loginUser, logoutUser } from "../services/api";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { clearAuthToken, getCurrentUser, loginUser, logoutUser, setAuthToken } from "../services/api";
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState(null);
   const [apsScore, setApsScore] = useState(0);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const isAuthenticated = Boolean(user && role);
+  const isAdmin = role === "admin";
+  const isLoggedIn = role === "student";
+
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
-    const storedAps = Number(localStorage.getItem("apsScore") || 0);
-
-    if (storedUser) {
+    const bootstrap = async () => {
       try {
-        const parsedUser = JSON.parse(storedUser);
-
-        setUser(parsedUser);
-        setApsScore(Number(parsedUser.aps_score ?? storedAps ?? 0));
-        setIsLoggedIn(parsedUser.role === "student");
-        setIsAdmin(parsedUser.role === "admin");
+        const data = await getCurrentUser();
+        const sessionUser = data.user;
+        setUser(sessionUser);
+        setRole(sessionUser.role);
+        setApsScore(Number(sessionUser.aps_score ?? 0));
       } catch {
-        localStorage.removeItem("user");
+        setUser(null);
+        setRole(null);
+        setApsScore(0);
+      } finally {
+        setLoading(false);
       }
-    } else if (storedAps) {
-      setApsScore(storedAps);
-    }
+    };
 
-    if (!storedToken) {
-      localStorage.removeItem("token");
-    }
-
-    setLoading(false);
+    bootstrap();
   }, []);
 
-  const login = async (email, password, expectedRole) => {
+  const login = useCallback(async (email, password, expectedRole) => {
     const data = await loginUser(email, password);
+    setAuthToken(data.token);
 
     if (expectedRole === "admin" && data.user.role !== "admin") {
+      clearAuthToken();
+      await logoutUser().catch(() => {});
       throw new Error("This account is not an admin user.");
     }
 
     if (expectedRole === "student" && data.user.role !== "student") {
+      clearAuthToken();
+      await logoutUser().catch(() => {});
       throw new Error("Please use the admin portal for admin accounts.");
     }
 
-    if (data.token) {
-      localStorage.setItem("token", data.token);
-    }
-
-    localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("apsScore", String(data.user.aps_score ?? 0));
-
     setUser(data.user);
-    setApsScore(data.user.aps_score ?? 0);
-
-    if (data.user.role === "admin") {
-      setIsAdmin(true);
-      setIsLoggedIn(false);
-    } else {
-      setIsLoggedIn(true);
-      setIsAdmin(false);
-    }
+    setRole(data.user.role);
+    setApsScore(Number(data.user.aps_score ?? 0));
 
     return data;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await logoutUser();
     } catch {
-      // The server-side cookie clear is best effort for production sessions.
+      // Cookie-based sessions can still be cleared best-effort on the client.
     }
 
-    const retainedAps = Number(apsScore || Number(localStorage.getItem("apsScore") || 0));
-    localStorage.setItem("apsScore", String(retainedAps));
-
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-
-    setIsLoggedIn(false);
-    setIsAdmin(false);
     setUser(null);
-    setApsScore(retainedAps);
-  };
+    setRole(null);
+    setApsScore(0);
+    clearAuthToken();
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        isLoggedIn,
-        isAdmin,
-        apsScore,
-        setApsScore,
-        user,
-        loading,
-        login,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = useMemo(() => ({
+    isAuthenticated,
+    isAdmin,
+    isLoggedIn,
+    role,
+    apsScore,
+    setApsScore,
+    user,
+    loading,
+    login,
+    logout,
+  }), [isAuthenticated, isAdmin, isLoggedIn, role, apsScore, user, loading, login, logout]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

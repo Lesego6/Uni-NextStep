@@ -48,7 +48,7 @@ export default function LandingPage() {
               Your Future Starts<br />With the Right <span className="text-accent">Next Step</span>
             </h1>
             <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-xl">
-              Navigate South African university admissions with confidence. Calculate your APS, discover qualifying courses, and track applications — all in one place.
+              Navigate South African university admissions with confidence. Calculate your APS, discover qualifying courses, and track applications - all in one place.
             </p>
             <Link to="/auth" className="inline-flex items-center gap-2 btn-primary text-lg">
               Get Started
@@ -68,7 +68,7 @@ export default function LandingPage() {
             </div>
             <div className="w-px h-12 bg-gray-200 hidden md:block"></div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">100+</div>
+              <div className="text-3xl font-bold text-primary">10+</div>
               <div className="text-sm text-gray-500 mt-1">Courses</div>
             </div>
             <div className="w-px h-12 bg-gray-200 hidden md:block"></div>

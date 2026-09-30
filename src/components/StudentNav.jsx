@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { GraduationCap, Calculator, Building2, BookOpen, FileText, ClipboardList, LogOut, Menu, X } from 'lucide-react';
+import { GraduationCap, Calculator, Building2, BookOpen, FileText, ClipboardList, LogOut, Menu, Upload, X } from 'lucide-react';
 import { useState } from 'react';
 
 export default function StudentNav() {
@@ -8,12 +8,14 @@ export default function StudentNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const studentSummary = [user?.name, user?.grade].filter(Boolean).join(' - ');
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: GraduationCap },
     { path: '/calculator', label: 'APS Calculator', icon: Calculator },
     { path: '/universities', label: 'Universities', icon: Building2 },
     { path: '/courses', label: 'Courses', icon: BookOpen },
+    { path: '/documents', label: 'Documents', icon: Upload },
     { path: '/apply', label: 'Apply', icon: FileText },
     { path: '/track', label: 'Track', icon: ClipboardList },
   ];
@@ -53,7 +55,7 @@ export default function StudentNav() {
           </div>
 
           <div className="hidden md:flex items-center gap-4">
-            <span className="text-sm text-gray-300">{user?.name} · {user?.grade}</span>
+            <span className="text-sm text-gray-300">{studentSummary || 'Student'}</span>
             <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm hover:text-accent transition-colors">
               <LogOut className="w-4 h-4" />
               Sign Out
@@ -89,7 +91,7 @@ export default function StudentNav() {
               );
             })}
             <div className="border-t border-white/10 pt-3 mt-2">
-              <span className="block px-3 text-sm text-gray-300 mb-2">{user?.name}</span>
+              <span className="block px-3 text-sm text-gray-300 mb-2">{user?.name || 'Student'}</span>
               <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-sm text-red-300 hover:text-red-200">
                 <LogOut className="w-4 h-4" />
                 Sign Out

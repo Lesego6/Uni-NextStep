@@ -1,0 +1,26 @@
+<div style="font-family: Arial, sans-serif; background:#f4f7fb; padding:32px;">
+  <div style="max-width:640px; margin:auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;">
+    <div style="background:#1A3A6B; color:#ffffff; padding:24px 28px;">
+      <p style="margin:0 0 8px; color:#fde68a; font-size:13px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;">Uni NextStep</p>
+      <h1 style="margin:0; font-size:24px; line-height:1.25;">Application under review</h1>
+    </div>
+
+    <div style="padding:28px; color:#1f2937;">
+      <p style="margin:0 0 16px; font-size:16px;">Hi {{to_name}},</p>
+      <p style="margin:0 0 22px; line-height:1.6;">Your Uni NextStep application is still being reviewed.</p>
+
+      <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:16px; margin:0 0 18px;">
+        <p style="margin:0 0 8px;"><strong>Reference:</strong> {{reference_number}}</p>
+        <p style="margin:0 0 8px;"><strong>Course:</strong> {{course_name}}</p>
+        <p style="margin:0 0 8px;"><strong>University:</strong> {{university_name}}</p>
+        <p style="margin:0;"><strong>Status:</strong> {{status_label}}</p>
+      </div>
+
+      <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:16px; margin:0 0 22px;">
+        <p style="margin:0; line-height:1.6;"><strong>{{status_detail_title}}:</strong> {{status_detail}}</p>
+      </div>
+
+      <p style="margin:0; line-height:1.6;">Regards,<br />Uni NextStep</p>
+    </div>
+  </div>
+</div>

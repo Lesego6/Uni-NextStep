@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function StudentDashboard() {
-  const { setApsScore } = useAuth();
+  const { apsScore, setApsScore, user } = useAuth();
   
   const [profile, setProfile] = useState(null);
   const [courses, setCourses] = useState([]);
@@ -16,29 +16,40 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     const loadDashboardData = async () => {
-      try {
-        setLoading(true);
-        // Fetch the user profile and the course catalog at the same time
-        const [profileData, courseData] = await Promise.all([
-          getMyProfile(),
-          getCourses()
-        ]);
-        
+      setLoading(true);
+
+      const [profileResult, coursesResult] = await Promise.allSettled([
+        getMyProfile(),
+        getCourses()
+      ]);
+
+      if (profileResult.status === 'fulfilled') {
+        const profileData = profileResult.value;
         setProfile(profileData.user);
-        setApsScore(profileData.user.aps_score);
-        setCourses(courseData.courses || []);
-      } catch (error) {
-        console.error("Failed to load dashboard data:", error);
-      } finally {
-        setLoading(false);
+        setApsScore(Number(profileData.user.aps_score ?? 0));
+      } else {
+        console.error("Failed to load student profile:", profileResult.reason);
+        setProfile(user);
       }
+
+      if (coursesResult.status === 'fulfilled') {
+        const courseData = coursesResult.value;
+        setCourses(courseData.courses || []);
+      } else {
+        console.error("Failed to load course catalog:", coursesResult.reason);
+        setCourses([]);
+      }
+
+      setLoading(false);
     };
 
     loadDashboardData();
-  }, [setApsScore]);
+  }, [setApsScore, user]);
 
   // Dynamically calculate based on the fetched API data
-  const currentAps = profile?.aps_score || 0;
+  const displayUser = profile || user;
+  const firstName = displayUser?.first_name || displayUser?.name?.split(' ')[0] || 'Student';
+  const currentAps = Number(displayUser?.aps_score ?? apsScore ?? 0);
   const qualifyingCount = courses.filter(course => currentAps >= course.minAps).length;
 
   const steps = [
@@ -50,7 +61,7 @@ export default function StudentDashboard() {
 
   const quickNav = [
     { icon: Calculator, label: 'APS Calculator', desc: 'Calculate your score', path: '/calculator', color: 'bg-blue-50 text-primary' },
-    { icon: Building2, label: 'Universities', desc: 'Browse all 26 institutions', path: '/universities', color: 'bg-teal-50 text-accent' },
+    { icon: Building2, label: 'Universities', desc: 'Browse institutions', path: '/universities', color: 'bg-teal-50 text-accent' },
     { icon: BookOpen, label: 'Courses', desc: 'Find matching courses', path: '/courses', color: 'bg-indigo-50 text-indigo-600' },
     { icon: FileText, label: 'Applications', desc: 'Track your status', path: '/track', color: 'bg-amber-50 text-amber-600' },
   ];
@@ -68,7 +79,7 @@ export default function StudentDashboard() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-heading font-bold mb-1">
-          Welcome back, {profile?.first_name || "Student"}
+          Welcome back, {firstName}
         </h1>
         <p className="text-gray-500">Here's your university journey progress</p>
       </div>

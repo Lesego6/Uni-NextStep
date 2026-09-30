@@ -58,7 +58,7 @@ export default function UniversityBrowser() {
           <Building2 className="w-8 h-8 text-accent" />
           University Browser
         </h1>
-        <p className="text-gray-500">Explore all 26 South African public universities and their courses.</p>
+        <p className="text-gray-500">Explore South African public universities and their courses.</p>
       </div>
 
       {error && (

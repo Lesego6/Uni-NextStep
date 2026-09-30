@@ -6,6 +6,8 @@ const authenticateToken = require("../middleware/authMiddleware");
 const router = express.Router();
 const VALID_ROLES = ["student", "admin"];
 const VALID_STATUSES = ["Active", "Inactive"];
+const VALID_GRADES = ["Grade 9", "Grade 10", "Grade 11", "Grade 12", "Matriculated"];
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function requireAdmin(req, res, next) {
   if (req.user.role !== "admin") {
@@ -64,8 +66,8 @@ function mapUser(row) {
   };
 }
 
-async function getUserById(id) {
-  return await db
+async function getUserById(id, executor = db) {
+  return await executor
     .prepare(`
       SELECT
         users.id,
@@ -199,6 +201,24 @@ router.post("/users", async (req, res) => {
     });
   }
 
+  if (!EMAIL_PATTERN.test(String(email).trim())) {
+    return res.status(400).json({
+      message: "Please provide a valid email address."
+    });
+  }
+
+  if (String(password).length < 8) {
+    return res.status(400).json({
+      message: "Password must be at least 8 characters long."
+    });
+  }
+
+  if (role === "student" && !VALID_GRADES.includes(String(grade || "Grade 12"))) {
+    return res.status(400).json({
+      message: "Please provide a valid grade."
+    });
+  }
+
   if (role === "student" && (!Number.isInteger(parsedAps) || parsedAps < 0 || parsedAps > 42)) {
     return res.status(400).json({
       message: "APS score must be between 0 and 42."
@@ -241,7 +261,7 @@ router.post("/users", async (req, res) => {
         `).run(result.lastInsertRowid, grade || "Grade 12", parsedAps);
       }
 
-      return await getUserById(result.lastInsertRowid);
+      return await getUserById(result.lastInsertRowid, tx);
     });
 
     res.status(201).json({

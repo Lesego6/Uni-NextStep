@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getCourses, getUniversities } from '../services/api.js';
 import { Search, Filter, BookOpen, MapPin, GraduationCap, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import SelectMenu from '../components/SelectMenu.jsx';
 
 const fields = ['All', 'Health Sciences', 'Engineering', 'Science & Technology', 'Commerce', 'Law', 'Humanities', 'Education', 'Agriculture'];
 const provinces = ['All', 'Western Cape', 'Gauteng', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo', 'North West', 'Free State', 'Northern Cape', 'Mpumalanga'];
@@ -102,26 +103,22 @@ export default function CourseRecommendations() {
               className="input-field pl-11"
             />
           </div>
-          <div className="flex gap-3">
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="sm:w-56">
+              <SelectMenu
                 value={selectedField}
-                onChange={(e) => setSelectedField(e.target.value)}
-                className="input-field pl-10 pr-8 appearance-none"
-              >
-                {fields.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
+                options={fields}
+                onChange={setSelectedField}
+                icon={Filter}
+              />
             </div>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select
+            <div className="sm:w-56">
+              <SelectMenu
                 value={selectedProvince}
-                onChange={(e) => setSelectedProvince(e.target.value)}
-                className="input-field pl-10 pr-8 appearance-none"
-              >
-                {provinces.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+                options={provinces}
+                onChange={setSelectedProvince}
+                icon={MapPin}
+              />
             </div>
           </div>
         </div>

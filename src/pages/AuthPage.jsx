@@ -12,6 +12,7 @@ import {
   ChevronRight,
   AlertCircle,
 } from "lucide-react";
+import SelectMenu from "../components/SelectMenu.jsx";
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
@@ -321,22 +322,12 @@ export default function AuthPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Current Grade
-                  </label>
-                  <select
-                    className="input-field"
+                  <SelectMenu
+                    label="Current Grade"
                     value={formData.grade}
-                    onChange={(e) =>
-                      setFormData({ ...formData, grade: e.target.value })
-                    }
-                  >
-                    {grades.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
+                    options={grades}
+                    onChange={(grade) => setFormData({ ...formData, grade })}
+                  />
                 </div>
 
                 {formError && (

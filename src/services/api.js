@@ -1,127 +1,131 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const AUTH_TOKEN_KEY = "authToken";
 
-function getAuthHeaders() {
-  const token = localStorage.getItem("token");
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {})
-  };
+export function getAuthToken() {
+  return localStorage.getItem(AUTH_TOKEN_KEY);
 }
 
-function apiFetch(url, options = {}) {
-  return fetch(url, {
+export function setAuthToken(token) {
+  if (token) {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+  }
+}
+
+export function clearAuthToken() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+async function request(path, options = {}) {
+  const token = getAuthToken();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  const response = await fetch(`${API_URL}${path}`, {
     ...options,
     credentials: "include",
-    headers: {
-      ...getAuthHeaders(),
-      ...(options.headers || {})
-    }
+    headers,
   });
+
+  const contentType = response.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson ? await response.json() : await response.text();
+
+  if (response.status === 401) {
+    localStorage.removeItem("apsScore");
+    clearAuthToken();
+  }
+
+  if (!response.ok) {
+    throw new Error((typeof data === "object" && data ? data.message : data) || "Request failed");
+  }
+
+  return data;
 }
 
 export async function registerUser(userData) {
-  const response = await apiFetch(`${API_URL}/auth/register`, {
+  return request("/auth/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(userData),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Registration failed");
-  return data;
 }
 
 export async function loginUser(email, password) {
-  const response = await fetch(`${API_URL}/auth/login`, {
+  return request("/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
-    credentials: "include"
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Login failed");
-  return data;
+}
+
+export async function getCurrentUser() {
+  return request("/auth/me", { method: "GET" });
 }
 
 export async function logoutUser() {
-  const response = await apiFetch(`${API_URL}/auth/logout`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" }
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Logout failed");
-  return data;
+  try {
+    return await request("/auth/logout", { method: "POST" });
+  } finally {
+    clearAuthToken();
+  }
 }
 
 export async function saveAPS(subjectsPayload) {
-  const response = await apiFetch(`${API_URL}/student/aps`, {
+  return request("/student/aps", {
     method: "POST",
     body: JSON.stringify({ subjects: subjectsPayload })
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to save APS score");
-  return data;
 }
 
 export async function getMyProfile() {
-  const response = await apiFetch(`${API_URL}/student/profile`, {
-    method: "GET"
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to load profile");
-  return data;
+  return request("/student/profile", { method: "GET" });
 }
 
 export async function submitApplications(applications) {
-  const response = await apiFetch(`${API_URL}/applications`, {
+  return request("/applications", {
     method: "POST",
     body: JSON.stringify({ applications })
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to submit applications");
-  return data;
+}
+
+export async function getApplicationProfileData() {
+  return request("/applications/profile-data", { method: "GET" });
+}
+
+export async function saveApplicationProfileData(payload) {
+  return request("/applications/profile-data", {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function getMyApplications() {
-  const response = await apiFetch(`${API_URL}/applications/my`, {
-    method: "GET"
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to load applications");
-  return data;
+  return request("/applications/my", { method: "GET" });
 }
 
 export async function getAllApplications(status) {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
-  const response = await apiFetch(`${API_URL}/applications${query}`, {
-    method: "GET"
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to load applications");
-  return data;
+  return request(`/applications${query}`, { method: "GET" });
 }
 
-export async function updateApplicationStatus(applicationId, status) {
-  const response = await apiFetch(`${API_URL}/applications/${applicationId}/status`, {
+export async function getApplicationDetails(applicationId) {
+  return request(`/applications/${applicationId}/details`, { method: "GET" });
+}
+
+export async function updateApplicationStatus(applicationId, status, details = {}) {
+  return request(`/applications/${applicationId}/status`, {
     method: "PATCH",
-    body: JSON.stringify({ status })
+    body: JSON.stringify({ status, ...details })
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to update application status");
-  return data;
 }
 
 export async function getCourses() {
-  const response = await apiFetch(`${API_URL}/courses`, { method: "GET" });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to load courses");
-  return data;
+  return request("/courses", { method: "GET" });
 }
 
 export async function getUniversities() {
-  const response = await apiFetch(`${API_URL}/universities`, { method: "GET" });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to load universities");
-  return data;
+  return request("/universities", { method: "GET" });
 }
 
 export async function getAdminUsers({ search = "", role = "" } = {}) {
@@ -130,49 +134,28 @@ export async function getAdminUsers({ search = "", role = "" } = {}) {
   if (role && role !== "All") params.set("role", role);
 
   const query = params.toString() ? `?${params.toString()}` : "";
-  const response = await apiFetch(`${API_URL}/admin/users${query}`, {
-    method: "GET"
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to load users");
-  return data;
+  return request(`/admin/users${query}`, { method: "GET" });
 }
 
 export async function createAdminUser(userData) {
-  const response = await apiFetch(`${API_URL}/admin/users`, {
+  return request("/admin/users", {
     method: "POST",
     body: JSON.stringify(userData)
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to create user");
-  return data;
 }
 
 export async function updateAdminUserStatus(userId, status) {
-  const response = await apiFetch(`${API_URL}/admin/users/${userId}/status`, {
+  return request(`/admin/users/${userId}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status })
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to update user status");
-  return data;
 }
 
 export async function deleteAdminUser(userId) {
-  const response = await apiFetch(`${API_URL}/admin/users/${userId}`, {
-    method: "DELETE"
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to delete user");
-  return data;
+  return request(`/admin/users/${userId}`, { method: "DELETE" });
 }
 
 export async function getAdminReport({ type, startDate, endDate }) {
   const params = new URLSearchParams({ type, start_date: startDate, end_date: endDate });
-  const response = await apiFetch(`${API_URL}/admin/reports?${params.toString()}`, {
-    method: "GET"
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to generate report");
-  return data;
+  return request(`/admin/reports?${params.toString()}`, { method: "GET" });
 }

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { subjectList } from '../data/subjects.js';
 import { Plus, Trash2, AlertCircle, Calculator, ArrowRight, BookOpen } from 'lucide-react';
+import SelectMenu from '../components/SelectMenu.jsx';
 
 // This is kept for UI optimism only. The backend makes the final determination.
 function calculateAPSPoints(mark) {
@@ -13,7 +14,8 @@ function calculateAPSPoints(mark) {
   if (mark >= 50) return 4;
   if (mark >= 40) return 3;
   if (mark >= 30) return 2;
-  return 1;
+  if (mark > 0) return 1;
+  return 0;
 }
 
 export default function APSCalculator() {
@@ -77,9 +79,21 @@ export default function APSCalculator() {
   const handleSave = async () => {
     setFormError('');
     const rawSubjects = subjects.filter(s => s.mark !== '');
+    const enteredNonLifeOrientation = rawSubjects.filter(
+      (subject) => !subject.name.toLowerCase().includes('life orientation')
+    );
+    const hasInvalidMarks = rawSubjects.some((subject) => {
+      const mark = parseFloat(subject.mark);
+      return Number.isNaN(mark) || mark < 0 || mark > 100;
+    });
     
-    if (rawSubjects.length < 6) {
-      setFormError('Please enter marks for at least 6 subjects to calculate a valid APS.');
+    if (enteredNonLifeOrientation.length < 6) {
+      setFormError('Please enter marks for at least 6 non-Life Orientation subjects to calculate a valid APS.');
+      return;
+    }
+
+    if (hasInvalidMarks) {
+      setFormError('Please fix marks so each entered value is between 0 and 100.');
       return;
     }
 
@@ -135,15 +149,13 @@ export default function APSCalculator() {
                 return (
                   <tr key={subject.id} className="border-b border-gray-50 last:border-0">
                     <td className="py-3 px-2">
-                      <select
+                      <SelectMenu
                         value={subject.name}
-                        onChange={(e) => updateSubject(subject.id, 'name', e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none bg-white"
-                      >
-                        {subjectList.map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                        options={subjectList}
+                        onChange={(value) => updateSubject(subject.id, 'name', value)}
+                        buttonClassName="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none bg-white"
+                        menuClassName="min-w-56"
+                      />
                     </td>
                     <td className="py-3 px-2">
                       <div className="relative">

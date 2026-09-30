@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Shield, Users, BarChart3, LogOut, Menu, X } from 'lucide-react';
+import { Shield, Users, BarChart3, FileText, LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 export default function AdminNav() {
@@ -11,6 +11,7 @@ export default function AdminNav() {
 
   const navItems = [
     { path: '/admin/users', label: 'User Management', icon: Users },
+    { path: '/admin/applications', label: 'Applications', icon: FileText },
     { path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   ];
 

@@ -1,11 +1,13 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { submitApplications, getCourses, getUniversities } from '../services/api.js';
+import { submitApplications, getCourses, getUniversities, getApplicationProfileData } from '../services/api.js';
 import {
   AlertCircle, ArrowLeft, CheckCircle2, ClipboardCheck, ClipboardList, 
-  FileText, GraduationCap, Mail, Send, User, Loader2
+  FileText, Send, Loader2, Upload
 } from 'lucide-react';
+
+const fallbackRequiredDocuments = ['ID Document', 'Latest Results', 'Proof of Address'];
 
 export default function ApplicationPage() {
   const { user, apsScore } = useAuth();
@@ -13,6 +15,9 @@ export default function ApplicationPage() {
   
   const [courses, setCourses] = useState([]);
   const [universities, setUniversities] = useState([]);
+  const [applicationProfile, setApplicationProfile] = useState(null);
+  const [applicationDocuments, setApplicationDocuments] = useState([]);
+  const [requiredDocuments, setRequiredDocuments] = useState(fallbackRequiredDocuments);
   const [dataLoading, setDataLoading] = useState(true);
   
   const [selectedCourses, setSelectedCourses] = useState([]);
@@ -23,18 +28,25 @@ export default function ApplicationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const loadCatalog = async () => {
+    const loadApplicationData = async () => {
       try {
-        const [courseData, uniData] = await Promise.all([getCourses(), getUniversities()]);
+        const [courseData, uniData, profileData] = await Promise.all([
+          getCourses(),
+          getUniversities(),
+          getApplicationProfileData(),
+        ]);
         setCourses(courseData.courses || []);
         setUniversities(uniData.universities || []);
+        setApplicationProfile(profileData.profile || null);
+        setApplicationDocuments(profileData.documents || []);
+        setRequiredDocuments(profileData.required_documents || fallbackRequiredDocuments);
       } catch (err) {
-        setFormError("Could not load courses from the server.");
+        setFormError(err.message || "Could not load application data from the server.");
       } finally {
         setDataLoading(false);
       }
     };
-    loadCatalog();
+    loadApplicationData();
   }, []);
 
   useEffect(() => {
@@ -64,6 +76,31 @@ export default function ApplicationPage() {
   );
 
   const applicantName = user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Student';
+  const detailsReady = useMemo(() => {
+    if (!applicationProfile) {
+      return false;
+    }
+
+    return [
+      applicationProfile.address_line1,
+      applicationProfile.city,
+      applicationProfile.province,
+      applicationProfile.postal_code,
+      applicationProfile.contact_number,
+      applicationProfile.guardian_name,
+      applicationProfile.guardian_contact,
+    ].every((value) => String(value || '').trim());
+  }, [applicationProfile]);
+  const missingDocuments = useMemo(() => {
+    const uploadedTypes = new Set(applicationDocuments.map((document) => document.document_type));
+    return requiredDocuments.filter((documentType) => !uploadedTypes.has(documentType));
+  }, [applicationDocuments, requiredDocuments]);
+  const applicationDetailsReady = detailsReady && missingDocuments.length === 0;
+  const detailsMessage = applicationDetailsReady
+    ? 'Your address, guardian details, and documents are saved.'
+    : missingDocuments.length > 0
+      ? `Complete your details and upload ${missingDocuments.length} required document${missingDocuments.length === 1 ? '' : 's'}.`
+      : 'Complete your address, contact number, and guardian details.';
 
   const toggleCourse = (courseId, uniId) => {
     setFormError('');
@@ -78,6 +115,11 @@ export default function ApplicationPage() {
 
   const handleSubmit = async () => {
     if (selectedCourses.length === 0) return;
+
+    if (!applicationDetailsReady) {
+      setFormError('Complete your application details and upload the required documents before submitting.');
+      return;
+    }
 
     const applications = selectedCourses.map((item) => {
       const course = courses.find((c) => c.id === item.courseId);
@@ -140,6 +182,28 @@ export default function ApplicationPage() {
         </h1>
       </div>
 
+      <div className={`card mb-6 ${applicationDetailsReady ? 'border-green-100 bg-green-50/40' : 'border-amber-100 bg-amber-50/40'}`}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${applicationDetailsReady ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+              {applicationDetailsReady ? <CheckCircle2 className="w-5 h-5" /> : <Upload className="w-5 h-5" />}
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">
+                {applicationDetailsReady ? 'Application details ready' : 'Application details needed'}
+              </h2>
+              <p className="text-sm text-gray-600">
+                {detailsMessage}
+              </p>
+            </div>
+          </div>
+          <Link to="/documents" className="btn-secondary inline-flex items-center justify-center gap-2">
+            <Upload className="w-4 h-4" />
+            Manage Details
+          </Link>
+        </div>
+      </div>
+
       <div className="card mb-6">
         <h3 className="font-bold mb-4 flex items-center gap-2">
           <ClipboardCheck className="w-5 h-5 text-accent" />
@@ -194,8 +258,8 @@ export default function ApplicationPage() {
 
       <button
         onClick={handleSubmit}
-        disabled={selectedCourses.length === 0 || isSubmitting}
-        className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${selectedCourses.length > 0 && !isSubmitting ? 'bg-accent text-white' : 'bg-gray-100 text-gray-400'}`}
+        disabled={selectedCourses.length === 0 || isSubmitting || !applicationDetailsReady}
+        className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${selectedCourses.length > 0 && !isSubmitting && applicationDetailsReady ? 'bg-accent text-white' : 'bg-gray-100 text-gray-400'}`}
       >
         <Send className="w-5 h-5" />
         {isSubmitting ? 'Submitting...' : 'Submit Applications'}

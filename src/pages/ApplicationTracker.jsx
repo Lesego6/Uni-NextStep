@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getMyApplications } from '../services/api.js';
 import {
   AlertCircle,
@@ -42,23 +42,42 @@ export default function ApplicationTracker() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadApplications = async () => {
+  const loadApplications = useCallback(async ({ silent = false } = {}) => {
     try {
       setError('');
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
 
       const data = await getMyApplications();
-      setApplications(data.applications);
+      setApplications(data.applications || []);
     } catch (loadError) {
       setError(loadError.message);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadApplications();
-  }, []);
+
+    const intervalId = window.setInterval(() => {
+      loadApplications({ silent: true });
+    }, 30000);
+
+    const handleFocus = () => {
+      loadApplications({ silent: true });
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [loadApplications]);
 
   const statusCounts = useMemo(() => {
     return applications.reduce(
@@ -86,7 +105,7 @@ export default function ApplicationTracker() {
         </div>
 
         <button
-          onClick={loadApplications}
+          onClick={() => loadApplications()}
           disabled={loading}
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-primary transition-all hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -151,6 +170,19 @@ export default function ApplicationTracker() {
                   <p className="text-xs text-gray-400 mt-1">
                     Submitted: {formatDate(application.submitted_at)}
                   </p>
+                  {application.status_updated_at && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Status updated: {formatDate(application.status_updated_at)}
+                    </p>
+                  )}
+                  {application.status === 'Rejected' && application.rejection_reason && (
+                    <div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      <p className="font-semibold">{application.rejection_reason}</p>
+                      {application.status_note && (
+                        <p className="mt-1 text-red-600">{application.status_note}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <span className="badge-primary font-mono text-xs">
                   {application.reference_number}
