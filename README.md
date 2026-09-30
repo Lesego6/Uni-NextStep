@@ -23,6 +23,7 @@ Uni NextStep is a South African university guidance and application platform. St
 - Application submission with duplicate-application checks.
 - Student application tracker with status timelines and activity history.
 - Student in-app notifications with unread/read state.
+- Context-aware in-app guidance assistant for student and admin questions.
 - Admin user management with duplicate-email audit support.
 - Admin application review with rejection reasons, notes, and decision checklist.
 - Admin document preview/download support.
@@ -41,6 +42,8 @@ Uni NextStep is a South African university guidance and application platform. St
 - MySQL
 - JWT authentication
 - EmailJS
+
+The guidance assistant is implemented as a rule-based, context-aware support tool that reads existing app data. It does not require a paid external AI API key.
 
 ## Project Structure
 
@@ -185,9 +188,10 @@ npm.cmd run build
 6. Review the decision checklist and uploaded documents.
 7. Reject an application with a reason and note.
 8. Confirm the student tracker shows the rejection, activity, and notification.
-9. Update student details/documents and request another review.
-10. Log in as admin again and confirm activity plus email history are recorded.
-11. Accept the application and confirm the student tracker syncs.
+9. Open Uni Guide and ask about rejection reasons or next steps.
+10. Update student details/documents and request another review.
+11. Log in as admin again and confirm activity plus email history are recorded.
+12. Accept the application and confirm the student tracker syncs.
 
 ## Routes
 

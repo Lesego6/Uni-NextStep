@@ -15,6 +15,7 @@ import AdminApplications from './pages/AdminApplications.jsx';
 import AdminReports from './pages/AdminReports.jsx';
 import StudentNav from './components/StudentNav.jsx';
 import AdminNav from './components/AdminNav.jsx';
+import GuidanceAssistant from './components/GuidanceAssistant.jsx';
 
 function ProtectedRoute({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -65,6 +66,7 @@ function App() {
     <div className="min-h-screen bg-background">
       {!loading && isLoggedIn && !isAdmin && <StudentNav />}
       {!loading && isAdmin && <AdminNav />}
+      {!loading && (isLoggedIn || isAdmin) && <GuidanceAssistant />}
       <main className={isLoggedIn || isAdmin ? 'pt-16' : ''}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
