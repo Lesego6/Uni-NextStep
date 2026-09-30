@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -42,25 +42,38 @@ function formatFileSize(size) {
   return `${Math.max(1, Math.round(Number(size) / 1024))} KB`;
 }
 
-function documentUrl(document) {
-  return `data:${document.mime_type || 'application/octet-stream'};base64,${document.content_base64}`;
+function base64ToBlob(document) {
+  const base64 = String(document.content_base64 || '').replace(/^data:[^;]+;base64,/, '');
+  const byteCharacters = window.atob(base64);
+  const byteArrays = [];
+
+  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+    const slice = byteCharacters.slice(offset, offset + 512);
+    const byteNumbers = new Array(slice.length);
+
+    for (let index = 0; index < slice.length; index += 1) {
+      byteNumbers[index] = slice.charCodeAt(index);
+    }
+
+    byteArrays.push(new Uint8Array(byteNumbers));
+  }
+
+  return new Blob(byteArrays, { type: document.mime_type || 'application/octet-stream' });
 }
 
-function viewDocument(document) {
-  const view = window.open('', '_blank', 'noopener,noreferrer');
-  if (view) {
-    view.opener = null;
-    view.location.href = documentUrl(document);
-  }
+function createDocumentUrl(document) {
+  return URL.createObjectURL(base64ToBlob(document));
 }
 
 function downloadDocument(document) {
   const link = window.document.createElement('a');
-  link.href = documentUrl(document);
+  const url = createDocumentUrl(document);
+  link.href = url;
   link.download = document.file_name || `${document.document_type}.pdf`;
   window.document.body.appendChild(link);
   link.click();
   link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function DetailField({ label, value }) {
@@ -83,6 +96,7 @@ function StatusBadge({ status }) {
 }
 
 export default function AdminApplications() {
+  const previewUrlRef = useRef(null);
   const [applications, setApplications] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [loading, setLoading] = useState(true);
@@ -90,9 +104,16 @@ export default function AdminApplications() {
   const [busyId, setBusyId] = useState(null);
   const [detailsLoadingId, setDetailsLoadingId] = useState(null);
   const [detailsDialog, setDetailsDialog] = useState(null);
+  const [documentPreview, setDocumentPreview] = useState(null);
   const [statusDialog, setStatusDialog] = useState(null);
   const [rejectionReason, setRejectionReason] = useState(rejectionReasons[1]);
   const [statusNote, setStatusNote] = useState('');
+
+  useEffect(() => () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+  }, []);
 
   const loadApplications = async (status = selectedStatus) => {
     try {
@@ -162,6 +183,31 @@ export default function AdminApplications() {
         : rejectionReasons[1]
     );
     setStatusNote(application.status_note || '');
+  };
+
+  const openDocumentPreview = (document) => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+
+    try {
+      const url = createDocumentUrl(document);
+      previewUrlRef.current = url;
+      setDocumentPreview({
+        ...document,
+        url
+      });
+    } catch {
+      setError('Could not open this document. Try downloading it instead.');
+    }
+  };
+
+  const closeDocumentPreview = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setDocumentPreview(null);
   };
 
   return (
@@ -437,7 +483,7 @@ export default function AdminApplications() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => viewDocument(document)}
+                            onClick={() => openDocumentPreview(document)}
                             className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -458,6 +504,68 @@ export default function AdminApplications() {
                 })}
               </div>
             </section>
+          </div>
+        </div>
+      )}
+
+      {documentPreview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-6">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+              <div className="min-w-0">
+                <h2 className="flex items-center gap-2 text-xl font-bold">
+                  <FileText className="w-5 h-5 text-accent" />
+                  {documentPreview.document_type}
+                </h2>
+                <p className="mt-1 truncate text-sm text-gray-500">
+                  {documentPreview.file_name} - {formatFileSize(documentPreview.file_size)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadDocument(documentPreview)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-primary hover:border-primary"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDocumentPreview}
+                  className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  aria-label="Close document preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="min-h-[60vh] flex-1 bg-gray-100 p-4">
+              {documentPreview.mime_type?.startsWith('image/') ? (
+                <div className="flex h-full min-h-[60vh] items-center justify-center">
+                  <img
+                    src={documentPreview.url}
+                    alt={documentPreview.file_name}
+                    className="max-h-[72vh] max-w-full rounded-lg bg-white object-contain shadow-sm"
+                  />
+                </div>
+              ) : documentPreview.mime_type === 'application/pdf' ? (
+                <iframe
+                  src={documentPreview.url}
+                  title={documentPreview.file_name}
+                  className="h-[72vh] w-full rounded-lg border border-gray-200 bg-white"
+                />
+              ) : (
+                <div className="flex min-h-[60vh] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white p-8 text-center">
+                  <FileText className="mb-3 h-10 w-10 text-gray-300" />
+                  <h3 className="text-lg font-bold text-primary">Preview unavailable</h3>
+                  <p className="mt-2 max-w-md text-sm text-gray-500">
+                    This file type cannot be previewed in the browser. Download it to view the document.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
