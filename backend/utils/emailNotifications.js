@@ -21,7 +21,11 @@ function formatStatus(status) {
 
 function getStatusTemplateId(status) {
   const statusTemplateKey = STATUS_TEMPLATE_KEYS[normalizeStatus(status)];
-  return (statusTemplateKey && process.env[statusTemplateKey]) || process.env.EMAILJS_TEMPLATE_ID;
+  return (
+    (statusTemplateKey && process.env[statusTemplateKey]) ||
+    process.env.EMAILJS_STATUS_TEMPLATE_ID ||
+    process.env.EMAILJS_TEMPLATE_ID
+  );
 }
 
 function getReceivedTemplateId() {

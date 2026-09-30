@@ -54,13 +54,14 @@ Optional EmailJS variables for status update emails:
 - `EMAILJS_SERVICE_ID`
 - `EMAILJS_TEMPLATE_ID`
 - `EMAILJS_RECEIVED_TEMPLATE_ID`
+- `EMAILJS_STATUS_TEMPLATE_ID`
 - `EMAILJS_ACCEPTED_TEMPLATE_ID`
 - `EMAILJS_REJECTED_TEMPLATE_ID`
 - `EMAILJS_PENDING_TEMPLATE_ID`
 - `EMAILJS_PUBLIC_KEY`
 - `EMAILJS_PRIVATE_KEY`
 
-`EMAILJS_TEMPLATE_ID` is the default template. The specific template IDs are optional; when set, the backend uses them for application received, accepted, rejected, and pending emails.
+`EMAILJS_TEMPLATE_ID` is used for application received emails. `EMAILJS_STATUS_TEMPLATE_ID` can be one shared template for accepted, rejected, and pending status updates. The accepted/rejected/pending template IDs are optional overrides if you later want separate designs per status.
 
 The EmailJS template can use these parameters: `to_email`, `to_name`, `reference_number`, `course_name`, `university_name`, `status`, `status_label`, `status_title`, `status_message`, `status_detail_title`, `status_detail`, `rejection_reason`, `status_note`, and `subject_line`.
 
