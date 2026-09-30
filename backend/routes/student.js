@@ -2,11 +2,24 @@ const express = require("express");
 const db = require("../database");
 const authenticateToken = require("../middleware/authMiddleware");
 const { calculateAps } = require("../utils/aps");
+const {
+    getUserNotifications,
+    markAllNotificationsRead,
+    markNotificationRead
+} = require("../utils/notifications");
 
 const router = express.Router();
 
+function requireStudent(req, res, next) {
+    if (req.user.role !== "student") {
+        return res.status(403).json({ message: "Student access is required." });
+    }
+
+    next();
+}
+
 // Accepts an array of objects: { subjects: [{ name: "Maths", percentage: 75 }, ...] }
-router.post("/aps", authenticateToken, async (req, res, next) => {
+router.post("/aps", authenticateToken, requireStudent, async (req, res, next) => {
     const { subjects } = req.body;
 
     if (!Array.isArray(subjects) || subjects.length === 0) {
@@ -46,7 +59,7 @@ router.post("/aps", authenticateToken, async (req, res, next) => {
     }
 });
 
-router.get("/profile", authenticateToken, async (req, res, next) => {
+router.get("/profile", authenticateToken, requireStudent, async (req, res, next) => {
     try {
         const profile = await db.prepare(`
             SELECT
@@ -64,5 +77,52 @@ router.get("/profile", authenticateToken, async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-}); 
+});
+
+router.get("/notifications", authenticateToken, requireStudent, async (req, res, next) => {
+    try {
+        const data = await getUserNotifications(req.user.id);
+        res.json(data);
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.patch("/notifications/read-all", authenticateToken, requireStudent, async (req, res, next) => {
+    try {
+        await markAllNotificationsRead(req.user.id);
+        const data = await getUserNotifications(req.user.id);
+        res.json({
+            message: "Notifications marked as read.",
+            ...data
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.patch("/notifications/:id/read", authenticateToken, requireStudent, async (req, res, next) => {
+    const notificationId = Number(req.params.id);
+
+    if (!Number.isInteger(notificationId) || notificationId <= 0) {
+        return res.status(400).json({ message: "Invalid notification ID." });
+    }
+
+    try {
+        const result = await markNotificationRead(req.user.id, notificationId);
+
+        if (result.changes === 0) {
+            return res.status(404).json({ message: "Notification not found." });
+        }
+
+        const data = await getUserNotifications(req.user.id);
+        res.json({
+            message: "Notification marked as read.",
+            ...data
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 module.exports = router;

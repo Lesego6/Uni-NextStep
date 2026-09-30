@@ -99,6 +99,18 @@ export async function getMyProfile() {
   return request("/student/profile", { method: "GET" });
 }
 
+export async function getStudentNotifications() {
+  return request("/student/notifications", { method: "GET" });
+}
+
+export async function markStudentNotificationRead(notificationId) {
+  return request(`/student/notifications/${notificationId}/read`, { method: "PATCH" });
+}
+
+export async function markAllStudentNotificationsRead() {
+  return request("/student/notifications/read-all", { method: "PATCH" });
+}
+
 export async function submitApplications(applications) {
   return request("/applications", {
     method: "POST",

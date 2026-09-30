@@ -10,6 +10,7 @@ A South African university guidance platform built with React, Vite, and a MySQL
 - Collects application contact details, guardian information, and required documents before submission.
 - Lets admins manage users, audit duplicate email accounts, review applications with a decision checklist, and generate reports.
 - Records application activity and EmailJS delivery history for admin review.
+- Shows in-app student notifications with unread/read state for application updates.
 - Sends EmailJS received/status emails when applications are submitted or updated.
 
 ## Stack
@@ -120,9 +121,10 @@ npm test
 4. Submit an application.
 5. Log in as admin, open Application Management, and review the decision checklist.
 6. Reject with a reason, then confirm the student tracker shows the rejection and activity.
-7. Update the student documents/details and request another review.
-8. Log in as admin again and confirm activity plus email history are recorded.
-9. Accept the application and confirm the student tracker syncs.
+7. Confirm the student notification bell shows the status update even if email delivery fails.
+8. Update the student documents/details and request another review.
+9. Log in as admin again and confirm activity plus email history are recorded.
+10. Accept the application and confirm the student tracker syncs.
 
 ## Routes
 

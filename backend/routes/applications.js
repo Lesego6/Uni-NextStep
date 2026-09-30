@@ -4,6 +4,7 @@ const db = require("../database");
 const authenticateToken = require("../middleware/authMiddleware");
 const { ensureSeededCatalog } = require("../utils/catalogSeed");
 const { sendApplicationReceivedEmail, sendStatusEmail } = require("../utils/emailNotifications");
+const { createNotification } = require("../utils/notifications");
 
 const router = express.Router();
 const VALID_STATUSES = ["Pending", "Accepted", "Rejected"];
@@ -362,6 +363,29 @@ function validateDocuments(documents) {
   return "";
 }
 
+function getStatusNotificationCopy(application) {
+  if (application.status === "Accepted") {
+    return {
+      title: "Application accepted",
+      message: `${application.course_name} at ${application.university_name} was accepted.`
+    };
+  }
+
+  if (application.status === "Rejected") {
+    const reason = application.rejection_reason ? ` Reason: ${application.rejection_reason}.` : "";
+    const note = application.status_note ? ` ${application.status_note}` : "";
+    return {
+      title: "Application rejected",
+      message: `${application.course_name} at ${application.university_name} was rejected.${reason}${note}`
+    };
+  }
+
+  return {
+    title: "Application back under review",
+    message: `${application.course_name} at ${application.university_name} is pending review.`
+  };
+}
+
 router.get("/profile-data", authenticateToken, requireRole("student"), async (req, res, next) => {
   try {
     const [profile, documents] = await Promise.all([
@@ -614,6 +638,14 @@ router.post("/", authenticateToken, requireRole("student"), async (req, res, nex
               reference_number: referenceNumber
             }
           }, tx);
+          await createNotification({
+            userId: req.user.id,
+            applicationId: insertion.lastInsertRowid,
+            type: "application_received",
+            title: "Application received",
+            message: `${catalogEntry.course_name} at ${catalogEntry.university_name} is now pending review.`,
+            linkPath: "/track"
+          }, tx);
           applications.push(mapApplication(inserted));
         }
 
@@ -816,6 +848,14 @@ router.patch("/:id/request-review", authenticateToken, requireRole("student"), a
         title: "Review requested",
         message: "The student updated their application details and requested another review."
       });
+      await createNotification({
+        userId: req.user.id,
+        applicationId,
+        type: "review_requested",
+        title: "Review request sent",
+        message: `${application.course_name} at ${application.university_name} was sent back for review.`,
+        linkPath: "/track"
+      });
 
       const updatedApplication = await db.prepare(`
         SELECT
@@ -895,6 +935,15 @@ router.patch("/:id/status", authenticateToken, requireRole("admin"), async (req,
           rejection_reason: status === "Rejected" ? rejectionReason : null,
           status_note: status === "Rejected" ? statusNote || null : null
         }
+      });
+      const notificationCopy = getStatusNotificationCopy(mappedApplication);
+      await createNotification({
+        userId: mappedApplication.user_id,
+        applicationId,
+        type: "status_update",
+        title: notificationCopy.title,
+        message: notificationCopy.message,
+        linkPath: "/track"
       });
 
       const emailResult = await sendStatusEmail(mappedApplication);

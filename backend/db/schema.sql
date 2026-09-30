@@ -142,3 +142,23 @@ CREATE TABLE IF NOT EXISTS application_email_logs (
   KEY idx_application_email_logs_status (status),
   KEY idx_application_email_logs_created_at (created_at)
 );
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  application_id INT,
+  type VARCHAR(80) NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  message TEXT,
+  link_path VARCHAR(255),
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at TIMESTAMP NULL DEFAULT NULL,
+  CONSTRAINT fk_notifications_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notifications_application
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  KEY idx_notifications_user_id (user_id),
+  KEY idx_notifications_is_read (is_read),
+  KEY idx_notifications_created_at (created_at)
+);
