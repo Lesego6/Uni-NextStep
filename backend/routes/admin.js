@@ -188,6 +188,75 @@ router.get("/users", async (req, res) => {
   }
 });
 
+router.get("/users/duplicates", async (req, res) => {
+  try {
+    const duplicateGroups = await db
+      .prepare(`
+        SELECT
+          LOWER(TRIM(email)) AS email_key,
+          COUNT(*) AS total
+        FROM users
+        GROUP BY LOWER(TRIM(email))
+        HAVING COUNT(*) > 1
+        ORDER BY total DESC, email_key ASC
+      `)
+      .all();
+
+    if (duplicateGroups.length === 0) {
+      return res.json({ duplicates: [] });
+    }
+
+    const duplicateKeys = duplicateGroups.map((group) => group.email_key);
+    const placeholders = duplicateKeys.map(() => "?").join(", ");
+    const duplicateUsers = await db
+      .prepare(`
+        SELECT
+          users.id,
+          users.first_name,
+          users.last_name,
+          users.email,
+          LOWER(TRIM(users.email)) AS email_key,
+          users.role,
+          users.status,
+          users.created_at,
+          student_profiles.grade,
+          student_profiles.aps_score,
+          COUNT(applications.id) AS application_count
+        FROM users
+        LEFT JOIN student_profiles
+          ON student_profiles.user_id = users.id
+        LEFT JOIN applications
+          ON applications.user_id = users.id
+        WHERE LOWER(TRIM(users.email)) IN (${placeholders})
+        GROUP BY users.id
+        ORDER BY LOWER(TRIM(users.email)) ASC, users.created_at ASC, users.id ASC
+      `)
+      .all(...duplicateKeys);
+
+    const usersByEmail = duplicateUsers.reduce((groups, row) => {
+      const emailKey = row.email_key;
+      const group = groups.get(emailKey) || [];
+      group.push(mapUser(row));
+      groups.set(emailKey, group);
+      return groups;
+    }, new Map());
+
+    res.json({
+      duplicates: duplicateGroups.map((group) => ({
+        email: group.email_key,
+        total: Number(group.total || 0),
+        users: usersByEmail.get(group.email_key) || []
+      }))
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Something went wrong while checking duplicate users."
+    });
+  }
+});
+
 router.post("/users", async (req, res) => {
   const { name, first_name, last_name, email, password, grade, aps_score } = req.body;
   const role = normalizeRole(req.body.role);
@@ -270,6 +339,12 @@ router.post("/users", async (req, res) => {
     });
 
   } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        message: "A user with this email already exists."
+      });
+    }
+
     console.error(error);
 
     res.status(500).json({

@@ -15,6 +15,23 @@ export function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+function getErrorMessage(data, status) {
+  if (typeof data === "object" && data?.message) {
+    return data.message;
+  }
+
+  if (typeof data === "string") {
+    if (status === 404 && data.includes("<!DOCTYPE html>")) {
+      return "That backend route was not found. Restart the backend server if you just updated the code.";
+    }
+
+    const text = data.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return text || "Request failed";
+  }
+
+  return "Request failed";
+}
+
 async function request(path, options = {}) {
   const token = getAuthToken();
   const headers = {
@@ -39,7 +56,7 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error((typeof data === "object" && data ? data.message : data) || "Request failed");
+    throw new Error(getErrorMessage(data, response.status));
   }
 
   return data;
@@ -120,6 +137,12 @@ export async function updateApplicationStatus(applicationId, status, details = {
   });
 }
 
+export async function requestApplicationReview(applicationId) {
+  return request(`/applications/${applicationId}/request-review`, {
+    method: "PATCH"
+  });
+}
+
 export async function getCourses() {
   return request("/courses", { method: "GET" });
 }
@@ -135,6 +158,10 @@ export async function getAdminUsers({ search = "", role = "" } = {}) {
 
   const query = params.toString() ? `?${params.toString()}` : "";
   return request(`/admin/users${query}`, { method: "GET" });
+}
+
+export async function getDuplicateAdminUsers() {
+  return request("/admin/users/duplicates", { method: "GET" });
 }
 
 export async function createAdminUser(userData) {

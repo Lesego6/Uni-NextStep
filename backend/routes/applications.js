@@ -55,6 +55,7 @@ function mapApplication(row) {
     student_email: row.student_email,
     course_id: row.course_id,
     course_name: row.course_name,
+    course_min_aps: row.course_min_aps ?? row.min_aps ?? null,
     university_id: row.university_id,
     university_name: row.university_name,
     status: row.status,
@@ -114,6 +115,128 @@ function mapDocument(row, includeContent = false) {
   }
 
   return document;
+}
+
+function parseMetadata(value) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+function mapApplicationEvent(row) {
+  return {
+    id: row.id,
+    application_id: row.application_id,
+    actor_user_id: row.actor_user_id,
+    actor_role: row.actor_role,
+    event_type: row.event_type,
+    title: row.title,
+    message: row.message || "",
+    metadata: parseMetadata(row.metadata_json),
+    created_at: row.created_at
+  };
+}
+
+function mapEmailLog(row) {
+  return {
+    id: row.id,
+    application_id: row.application_id,
+    recipient_email: row.recipient_email || "",
+    template_id: row.template_id || "",
+    email_type: row.email_type,
+    status: row.status,
+    status_label: row.status_label || "",
+    error_message: row.error_message || "",
+    created_at: row.created_at
+  };
+}
+
+async function recordApplicationEvent(applicationId, event, executor = db) {
+  await executor.prepare(`
+    INSERT INTO application_events (
+      application_id,
+      actor_user_id,
+      actor_role,
+      event_type,
+      title,
+      message,
+      metadata_json
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    applicationId,
+    event.actor_user_id || null,
+    event.actor_role || "system",
+    event.event_type,
+    event.title,
+    event.message || null,
+    event.metadata ? JSON.stringify(event.metadata) : null
+  );
+}
+
+async function recordEmailLog(applicationId, emailType, emailResult) {
+  if (!emailResult) {
+    return;
+  }
+
+  await db.prepare(`
+    INSERT INTO application_email_logs (
+      application_id,
+      recipient_email,
+      template_id,
+      email_type,
+      status,
+      status_label,
+      error_message
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    applicationId,
+    emailResult.recipient_email || null,
+    emailResult.template_id || null,
+    emailType,
+    emailResult.status || "unknown",
+    emailResult.status_label || null,
+    emailResult.error_message || null
+  );
+}
+
+async function getApplicationEvents(applicationIds) {
+  if (!applicationIds.length) {
+    return new Map();
+  }
+
+  const placeholders = applicationIds.map(() => "?").join(", ");
+  const rows = await db.prepare(`
+    SELECT *
+    FROM application_events
+    WHERE application_id IN (${placeholders})
+    ORDER BY created_at ASC, id ASC
+  `).all(...applicationIds);
+
+  return rows.reduce((eventsByApplication, row) => {
+    const applicationEvents = eventsByApplication.get(row.application_id) || [];
+    applicationEvents.push(mapApplicationEvent(row));
+    eventsByApplication.set(row.application_id, applicationEvents);
+    return eventsByApplication;
+  }, new Map());
+}
+
+async function getApplicationEmailLogs(applicationId) {
+  const rows = await db.prepare(`
+    SELECT *
+    FROM application_email_logs
+    WHERE application_id = ?
+    ORDER BY created_at DESC, id DESC
+  `).all(applicationId);
+
+  return rows.map(mapEmailLog);
 }
 
 async function getApplicationProfile(userId, executor = db) {
@@ -194,6 +317,15 @@ function validateProfile(profile) {
 
   if (profile.guardian_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.guardian_email)) {
     return "Guardian email must be a valid email address.";
+  }
+
+  const phonePattern = /^[0-9+()\-\s]{7,20}$/;
+  if (!phonePattern.test(profile.contact_number) || !phonePattern.test(profile.guardian_contact)) {
+    return "Contact numbers must be 7 to 20 characters and may only include numbers, spaces, +, -, and brackets.";
+  }
+
+  if (!/^\d{4}$/.test(profile.postal_code)) {
+    return "Postal code must be 4 digits.";
   }
 
   return "";
@@ -470,6 +602,18 @@ router.post("/", authenticateToken, requireRole("student"), async (req, res, nex
           );
 
           const inserted = await tx.prepare("SELECT * FROM applications WHERE id = ?").get(insertion.lastInsertRowid);
+          await recordApplicationEvent(insertion.lastInsertRowid, {
+            actor_user_id: req.user.id,
+            actor_role: "student",
+            event_type: "submitted",
+            title: "Application submitted",
+            message: `${catalogEntry.course_name} at ${catalogEntry.university_name} was submitted.`,
+            metadata: {
+              course_id: catalogEntry.course_id,
+              university_id: catalogEntry.university_id,
+              reference_number: referenceNumber
+            }
+          }, tx);
           applications.push(mapApplication(inserted));
         }
 
@@ -492,11 +636,12 @@ router.post("/", authenticateToken, requireRole("student"), async (req, res, nex
         const studentName = `${student?.first_name || ""} ${student?.last_name || ""}`.trim() || "Student";
 
         for (const application of result.applications) {
-          await sendApplicationReceivedEmail({
+          const emailResult = await sendApplicationReceivedEmail({
             ...application,
             student_name: studentName,
             student_email: student?.email || req.user.email
           });
+          await recordEmailLog(application.id, "application_received", emailResult);
         }
       }
 
@@ -513,7 +658,14 @@ router.post("/", authenticateToken, requireRole("student"), async (req, res, nex
 router.get("/my", authenticateToken, requireRole("student"), async (req, res, next) => {
     try {
       const rows = await db.prepare(`SELECT * FROM applications WHERE user_id = ? ORDER BY submitted_at DESC, id DESC`).all(req.user.id);
-      res.json({ applications: rows.map(mapApplication) });
+      const applications = rows.map(mapApplication);
+      const eventsByApplication = await getApplicationEvents(applications.map((application) => application.id));
+      res.json({
+        applications: applications.map((application) => ({
+          ...application,
+          activity: eventsByApplication.get(application.id) || []
+        }))
+      });
     } catch (error) { next(error); }
 });
 
@@ -556,12 +708,15 @@ router.get("/:id/details", authenticateToken, requireRole("admin"), async (req, 
           student_profiles.grade,
           student_profiles.province AS school_province,
           student_profiles.school,
-          student_profiles.aps_score
+          student_profiles.aps_score,
+          courses.min_aps AS course_min_aps
         FROM applications
         JOIN users
           ON users.id = applications.user_id
         LEFT JOIN student_profiles
           ON student_profiles.user_id = users.id
+        LEFT JOIN courses
+          ON courses.id = applications.course_id
         WHERE applications.id = ?
         LIMIT 1
       `).get(applicationId);
@@ -570,10 +725,12 @@ router.get("/:id/details", authenticateToken, requireRole("admin"), async (req, 
         return res.status(404).json({ message: "Application not found." });
       }
 
-      const [profile, documents, documentTypes] = await Promise.all([
+      const [profile, documents, documentTypes, eventsByApplication, emailLogs] = await Promise.all([
         getApplicationProfile(application.user_id),
         getDocuments(application.user_id, { includeContent: true }),
-        getDocumentTypes(application.user_id)
+        getDocumentTypes(application.user_id),
+        getApplicationEvents([application.id]),
+        getApplicationEmailLogs(application.id)
       ]);
 
       res.json({
@@ -593,9 +750,97 @@ router.get("/:id/details", authenticateToken, requireRole("admin"), async (req, 
         profile,
         documents,
         required_documents: REQUIRED_DOCUMENT_TYPES,
-        documents_complete: REQUIRED_DOCUMENT_TYPES.every((type) => documentTypes.includes(type))
+        documents_complete: REQUIRED_DOCUMENT_TYPES.every((type) => documentTypes.includes(type)),
+        activity: eventsByApplication.get(application.id) || [],
+        email_logs: emailLogs
       });
     } catch (error) { next(error); }
+});
+
+router.patch("/:id/request-review", authenticateToken, requireRole("student"), async (req, res, next) => {
+    const applicationId = Number(req.params.id);
+
+    if (!Number.isInteger(applicationId) || applicationId <= 0) {
+      return res.status(400).json({ message: "Invalid application ID." });
+    }
+
+    try {
+      const application = await db.prepare(`
+        SELECT
+          applications.*,
+          CONCAT(users.first_name, ' ', users.last_name) AS student_name,
+          users.email AS student_email
+        FROM applications
+        JOIN users
+          ON users.id = applications.user_id
+        WHERE applications.id = ?
+          AND applications.user_id = ?
+        LIMIT 1
+      `).get(applicationId, req.user.id);
+
+      if (!application) {
+        return res.status(404).json({ message: "Application not found." });
+      }
+
+      if (application.status !== "Rejected") {
+        return res.status(400).json({ message: "Only rejected applications can be sent back for review." });
+      }
+
+      const [profile, documentTypes] = await Promise.all([
+        getApplicationProfile(req.user.id),
+        getDocumentTypes(req.user.id)
+      ]);
+
+      if (!isApplicationProfileComplete(profile, documentTypes)) {
+        return res.status(400).json({
+          message: "Complete your application details and upload all required documents before requesting review."
+        });
+      }
+
+      await db.prepare(`
+        UPDATE applications
+        SET
+          status = 'Pending',
+          rejection_reason = NULL,
+          status_note = NULL,
+          status_updated_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND user_id = ?
+      `).run(applicationId, req.user.id);
+
+      await recordApplicationEvent(applicationId, {
+        actor_user_id: req.user.id,
+        actor_role: "student",
+        event_type: "review_requested",
+        title: "Review requested",
+        message: "The student updated their application details and requested another review."
+      });
+
+      const updatedApplication = await db.prepare(`
+        SELECT
+          applications.*,
+          CONCAT(users.first_name, ' ', users.last_name) AS student_name,
+          users.email AS student_email
+        FROM applications
+        JOIN users
+          ON users.id = applications.user_id
+        WHERE applications.id = ?
+          AND applications.user_id = ?
+        LIMIT 1
+      `).get(applicationId, req.user.id);
+      const mappedApplication = mapApplication(updatedApplication);
+
+      const emailResult = await sendStatusEmail(mappedApplication);
+      await recordEmailLog(applicationId, "status_update", emailResult);
+
+      res.json({
+        message: "Application sent back for review.",
+        application: mappedApplication
+      });
+    } catch (error) {
+      next(error);
+    }
 });
 
 router.patch("/:id/status", authenticateToken, requireRole("admin"), async (req, res, next) => {
@@ -637,7 +882,23 @@ router.patch("/:id/status", authenticateToken, requireRole("admin"), async (req,
         `).get(applicationId);
       const mappedApplication = mapApplication(application);
 
-      await sendStatusEmail(mappedApplication);
+      await recordApplicationEvent(applicationId, {
+        actor_user_id: req.user.id,
+        actor_role: "admin",
+        event_type: "status_updated",
+        title: `Status changed to ${status}`,
+        message: status === "Rejected"
+          ? `${rejectionReason}${statusNote ? ` - ${statusNote}` : ""}`
+          : `Application status changed to ${status}.`,
+        metadata: {
+          status,
+          rejection_reason: status === "Rejected" ? rejectionReason : null,
+          status_note: status === "Rejected" ? statusNote || null : null
+        }
+      });
+
+      const emailResult = await sendStatusEmail(mappedApplication);
+      await recordEmailLog(applicationId, "status_update", emailResult);
 
       res.json({ message: "Application status updated successfully.", application: mappedApplication });
     } catch (error) { next(error); }

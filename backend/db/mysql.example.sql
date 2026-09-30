@@ -107,3 +107,38 @@ CREATE TABLE IF NOT EXISTS applications (
   KEY idx_applications_user_id (user_id),
   KEY idx_applications_status (status)
 );
+
+CREATE TABLE IF NOT EXISTS application_events (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  actor_user_id INT,
+  actor_role VARCHAR(40),
+  event_type VARCHAR(80) NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  message TEXT,
+  metadata_json TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_application_events_application
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_application_events_actor
+    FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  KEY idx_application_events_application_id (application_id),
+  KEY idx_application_events_created_at (created_at)
+);
+
+CREATE TABLE IF NOT EXISTS application_email_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  recipient_email VARCHAR(255),
+  template_id VARCHAR(120),
+  email_type VARCHAR(80) NOT NULL,
+  status VARCHAR(40) NOT NULL,
+  status_label VARCHAR(80),
+  error_message TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_application_email_logs_application
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  KEY idx_application_email_logs_application_id (application_id),
+  KEY idx_application_email_logs_status (status),
+  KEY idx_application_email_logs_created_at (created_at)
+);

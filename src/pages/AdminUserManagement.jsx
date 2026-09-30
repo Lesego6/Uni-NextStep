@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import {
   createAdminUser,
   deleteAdminUser,
+  getDuplicateAdminUsers,
   getAdminUsers,
   updateAdminUserStatus,
 } from '../services/api.js';
@@ -36,6 +37,7 @@ const blankUser = {
 export default function AdminUserManagement() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -52,8 +54,15 @@ export default function AdminUserManagement() {
       setPageError('');
       setLoading(true);
 
-      const data = await getAdminUsers();
-      setUsers(data.users);
+      const usersData = await getAdminUsers();
+      setUsers(usersData.users || []);
+
+      try {
+        const duplicateData = await getDuplicateAdminUsers();
+        setDuplicateGroups(duplicateData.duplicates || []);
+      } catch {
+        setDuplicateGroups([]);
+      }
     } catch (error) {
       setPageError(error.message);
     } finally {
@@ -113,6 +122,12 @@ export default function AdminUserManagement() {
 
       await deleteAdminUser(userToDelete.id);
       setUsers((current) => current.filter((user) => user.id !== userToDelete.id));
+      setDuplicateGroups((current) => current
+        .map((group) => {
+          const nextUsers = group.users.filter((user) => user.id !== userToDelete.id);
+          return { ...group, total: nextUsers.length, users: nextUsers };
+        })
+        .filter((group) => group.total > 1));
       setUserToDelete(null);
     } catch (error) {
       setPageError(error.message);
@@ -178,6 +193,67 @@ export default function AdminUserManagement() {
         </div>
       )}
 
+      {duplicateGroups.length > 0 && (
+        <section className="mb-6 rounded-lg border border-amber-100 bg-amber-50 px-4 py-4">
+          <div className="mb-4 flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <h2 className="text-sm font-bold text-amber-900">Duplicate email accounts</h2>
+              <p className="mt-1 text-sm text-amber-800">
+                Review these accounts before deleting the extra profile.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {duplicateGroups.map((group) => (
+              <div key={group.email} className="rounded-lg border border-amber-100 bg-white px-3 py-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-primary">{group.email}</p>
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+                    {group.total} accounts
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {group.users.map((duplicateUser) => {
+                    const isCurrentUser = currentUser?.id === duplicateUser.id;
+                    const isBusy = busyUserId === duplicateUser.id;
+                    const applicationsLabel = duplicateUser.applications === '-'
+                      ? 'admin account'
+                      : `${duplicateUser.applications} application${duplicateUser.applications === 1 ? '' : 's'}`;
+
+                    return (
+                      <div
+                        key={duplicateUser.id}
+                        className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-primary">
+                            {duplicateUser.name || duplicateUser.email}
+                          </p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {duplicateUser.display_id} - {duplicateUser.role} - {applicationsLabel}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUserToDelete(duplicateUser)}
+                          disabled={isBusy || isCurrentUser}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="card mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
@@ -210,7 +286,78 @@ export default function AdminUserManagement() {
         </div>
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="space-y-3 md:hidden">
+        {loading ? (
+          <div className="card text-center text-sm font-semibold text-primary">
+            Loading users...
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="card text-center text-sm text-gray-400">
+            No users found.
+          </div>
+        ) : (
+          filteredUsers.map((user) => {
+            const isBusy = busyUserId === user.id;
+            const isCurrentUser = currentUser?.id === user.id;
+
+            return (
+              <div key={user.id} className="card">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-primary">{user.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-gray-500">{user.email}</p>
+                  </div>
+                  <span className={`badge text-xs ${
+                    user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {user.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-gray-400">ID</p>
+                    <p className="font-mono text-xs text-gray-500">{user.display_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-gray-400">Role</p>
+                    <p className="font-medium text-gray-700">{user.role}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-gray-400">APS</p>
+                    <p className="font-medium text-gray-700">{user.aps}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-gray-400">Applications</p>
+                    <p className="font-medium text-gray-700">{user.applications}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => toggleStatus(user)}
+                    disabled={isBusy || (isCurrentUser && user.status === 'Active')}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary/5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {user.status === 'Active' ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                    {user.status === 'Active' ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    onClick={() => setUserToDelete(user)}
+                    disabled={isBusy || isCurrentUser}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="card hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>

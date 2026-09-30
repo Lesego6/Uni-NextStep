@@ -53,6 +53,41 @@ function formatFileSize(size) {
   return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
+function validateProfile(profile) {
+  const requiredFields = [
+    profile.address_line1,
+    profile.city,
+    profile.province,
+    profile.postal_code,
+    profile.contact_number,
+    profile.guardian_name,
+    profile.guardian_contact,
+  ];
+  const phonePattern = /^[0-9+()\-\s]{7,20}$/;
+
+  if (!requiredFields.every((value) => String(value || '').trim())) {
+    return 'Please complete address, contact number, and guardian contact details.';
+  }
+
+  if (!/^\d{4}$/.test(String(profile.postal_code || '').trim())) {
+    return 'Postal code must be 4 digits.';
+  }
+
+  if (!phonePattern.test(String(profile.contact_number || '').trim())) {
+    return 'Contact number must be 7 to 20 characters and may only include numbers, spaces, +, -, and brackets.';
+  }
+
+  if (!phonePattern.test(String(profile.guardian_contact || '').trim())) {
+    return 'Guardian contact number must be 7 to 20 characters and may only include numbers, spaces, +, -, and brackets.';
+  }
+
+  if (profile.guardian_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.guardian_email.trim())) {
+    return 'Guardian email must be a valid email address.';
+  }
+
+  return '';
+}
+
 export default function ApplicationDocuments() {
   const fileInputRef = useRef(null);
   const [profile, setProfile] = useState(emptyProfile);
@@ -148,6 +183,19 @@ export default function ApplicationDocuments() {
   };
 
   const handleSave = async () => {
+    const validationError = validateProfile(profile);
+    if (validationError) {
+      setSuccess('');
+      setError(validationError);
+      return;
+    }
+
+    if (!documentsComplete) {
+      setSuccess('');
+      setError(`Please upload: ${missingDocuments.join(', ')}.`);
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
@@ -254,6 +302,8 @@ export default function ApplicationDocuments() {
               <input
                 value={profile.postal_code}
                 onChange={(event) => handleProfileChange('postal_code', event.target.value)}
+                inputMode="numeric"
+                maxLength={4}
                 className="input-field"
               />
             </label>
@@ -263,6 +313,8 @@ export default function ApplicationDocuments() {
               <input
                 value={profile.contact_number}
                 onChange={(event) => handleProfileChange('contact_number', event.target.value)}
+                inputMode="tel"
+                maxLength={20}
                 className="input-field"
               />
             </label>
@@ -297,6 +349,8 @@ export default function ApplicationDocuments() {
               <input
                 value={profile.guardian_contact}
                 onChange={(event) => handleProfileChange('guardian_contact', event.target.value)}
+                inputMode="tel"
+                maxLength={20}
                 className="input-field"
               />
             </label>

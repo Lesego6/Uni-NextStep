@@ -40,6 +40,16 @@ function isConfigured(templateId) {
   );
 }
 
+function createEmailResult({ status, templateId, application, statusLabel, errorMessage = "" }) {
+  return {
+    status,
+    template_id: templateId || "",
+    recipient_email: getRecipientEmail(application),
+    status_label: statusLabel,
+    error_message: errorMessage
+  };
+}
+
 function getStatusCopy(application) {
   const status = normalizeStatus(application.status);
 
@@ -81,10 +91,46 @@ function getReceivedCopy() {
   };
 }
 
+function getRecipientEmail(application) {
+  return String(
+    application.student_email ||
+    application.to_email ||
+    application.email ||
+    application.user_email ||
+    ""
+  ).trim().toLowerCase();
+}
+
+function getRecipientName(application) {
+  return String(application.student_name || application.to_name || "Student").trim();
+}
+
 async function sendEmail(templateId, application, copy, statusLabel) {
   if (!isConfigured(templateId)) {
-    console.warn("EmailJS email skipped because EMAILJS_* environment variables are not configured.");
-    return;
+    const errorMessage = "EmailJS email skipped because EMAILJS_* environment variables are not configured.";
+    console.warn(errorMessage);
+    return createEmailResult({
+      status: "skipped",
+      templateId,
+      application,
+      statusLabel,
+      errorMessage
+    });
+  }
+
+  const recipientEmail = getRecipientEmail(application);
+  const recipientName = getRecipientName(application);
+
+  if (!recipientEmail) {
+    const errorMessage = `EmailJS email skipped because recipient email is missing for application ${application.reference_number || "unknown"}.`;
+    console.warn(errorMessage);
+    return createEmailResult({
+      status: "skipped",
+      templateId,
+      application,
+      statusLabel,
+      errorMessage
+    });
   }
 
   const payload = {
@@ -92,8 +138,13 @@ async function sendEmail(templateId, application, copy, statusLabel) {
     template_id: templateId,
     user_id: process.env.EMAILJS_PUBLIC_KEY,
     template_params: {
-      to_email: application.student_email,
-      to_name: application.student_name,
+      to_email: recipientEmail,
+      email: recipientEmail,
+      user_email: recipientEmail,
+      recipient_email: recipientEmail,
+      to_name: recipientName,
+      name: recipientName,
+      user_name: recipientName,
       reference_number: application.reference_number,
       course_name: application.course_name,
       university_name: application.university_name,
@@ -122,20 +173,42 @@ async function sendEmail(templateId, application, copy, statusLabel) {
 
     if (!response.ok) {
       const text = await response.text();
-      console.warn(`EmailJS email failed: ${response.status} ${text}`);
+      const errorMessage = `${response.status} ${text}`;
+      console.warn(`EmailJS email failed: ${errorMessage}`);
+      return createEmailResult({
+        status: "failed",
+        templateId,
+        application,
+        statusLabel,
+        errorMessage
+      });
     }
+
+    return createEmailResult({
+      status: "sent",
+      templateId,
+      application,
+      statusLabel
+    });
   } catch (error) {
     console.warn("EmailJS email failed:", error.message);
+    return createEmailResult({
+      status: "failed",
+      templateId,
+      application,
+      statusLabel,
+      errorMessage: error.message
+    });
   }
 }
 
 async function sendApplicationReceivedEmail(application) {
-  await sendEmail(getReceivedTemplateId(), application, getReceivedCopy(), "Received");
+  return await sendEmail(getReceivedTemplateId(), application, getReceivedCopy(), "Received");
 }
 
 async function sendStatusEmail(application) {
   const statusLabel = formatStatus(application.status);
-  await sendEmail(getStatusTemplateId(application.status), application, getStatusCopy(application), statusLabel);
+  return await sendEmail(getStatusTemplateId(application.status), application, getStatusCopy(application), statusLabel);
 }
 
 module.exports = { sendApplicationReceivedEmail, sendStatusEmail };

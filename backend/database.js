@@ -26,6 +26,40 @@ async function ensureColumn(connection, tableName, columnName, definition) {
   }
 }
 
+async function ensureUsersEmailUniqueIndex(connection) {
+  const [indexes] = await connection.query(
+    `
+      SELECT index_name
+      FROM information_schema.statistics
+      WHERE table_schema = ?
+        AND table_name = 'users'
+        AND column_name = 'email'
+        AND non_unique = 0
+      LIMIT 1
+    `,
+    [dbName]
+  );
+
+  if (indexes.length > 0) {
+    return;
+  }
+
+  const [duplicates] = await connection.query(`
+    SELECT lower(email) AS email, COUNT(*) AS total
+    FROM users
+    GROUP BY lower(email)
+    HAVING COUNT(*) > 1
+    LIMIT 5
+  `);
+
+  if (duplicates.length > 0) {
+    console.warn("Could not add a unique email index because duplicate user emails already exist.");
+    return;
+  }
+
+  await connection.query("ALTER TABLE users ADD UNIQUE KEY idx_users_email_unique (email)");
+}
+
 async function ensureDatabaseAndSchema() {
   const connectionConfig = {
     host: dbHost,
@@ -59,6 +93,7 @@ async function ensureDatabaseAndSchema() {
   await ensureColumn(databaseConnection, "applications", "rejection_reason", "`rejection_reason` VARCHAR(255)");
   await ensureColumn(databaseConnection, "applications", "status_note", "`status_note` TEXT");
   await ensureColumn(databaseConnection, "applications", "status_updated_at", "`status_updated_at` TIMESTAMP NULL DEFAULT NULL");
+  await ensureUsersEmailUniqueIndex(databaseConnection);
 
   await databaseConnection.end();
 }

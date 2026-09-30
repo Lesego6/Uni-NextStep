@@ -6,10 +6,11 @@ A South African university guidance platform built with React, Vite, and a MySQL
 
 - Calculates APS using the backend as the source of truth: Life Orientation is excluded, marks are sorted descending, and only the top six eligible subjects count.
 - Lists courses and universities from a seeded catalog, with metadata including field and minimum APS.
-- Lets students apply to matching programmes and track submission status.
+- Lets students apply to matching programmes, track activity timelines, and request another review after rejected applications are corrected.
 - Collects application contact details, guardian information, and required documents before submission.
-- Lets admins manage users, review applications, and generate reports.
-- Sends EmailJS status emails when admins update an application.
+- Lets admins manage users, audit duplicate email accounts, review applications with a decision checklist, and generate reports.
+- Records application activity and EmailJS delivery history for admin review.
+- Sends EmailJS received/status emails when applications are submitted or updated.
 
 ## Stack
 
@@ -110,6 +111,18 @@ The backend includes Node tests for the APS logic in [backend/test/aps.test.js](
 cd backend
 npm test
 ```
+
+## Demo Checklist
+
+1. Register a student with a new email address.
+2. Calculate APS and save the score.
+3. Add contact, address, guardian details, and all required documents.
+4. Submit an application.
+5. Log in as admin, open Application Management, and review the decision checklist.
+6. Reject with a reason, then confirm the student tracker shows the rejection and activity.
+7. Update the student documents/details and request another review.
+8. Log in as admin again and confirm activity plus email history are recorded.
+9. Accept the application and confirm the student tracker syncs.
 
 ## Routes
 

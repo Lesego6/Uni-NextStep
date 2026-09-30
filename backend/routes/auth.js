@@ -17,7 +17,7 @@ const authLimiter = rateLimit({
 });
 
 router.post("/register", authLimiter, async (req, res, next) => {
-  const { first_name, last_name, email, password, grade } = req.body;
+  const { first_name, last_name, email, password, grade } = req.body || {};
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!first_name || !last_name || !email || !password || !grade) {
@@ -39,28 +39,55 @@ router.post("/register", authLimiter, async (req, res, next) => {
 
   try {
     const normalizedEmail = email.trim().toLowerCase();
-    const existingUser = await db.prepare("SELECT id FROM users WHERE email = ?").get(normalizedEmail);
+    const existingUser = await db.prepare(`
+      SELECT id
+      FROM users
+      WHERE lower(email) = lower(?)
+      LIMIT 1
+    `).get(normalizedEmail);
 
     if (existingUser) {
       return res.status(409).json({ message: "A user with this email already exists." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await db.prepare(`
-        INSERT INTO users (first_name, last_name, email, password, role)
-        VALUES (?, ?, ?, ?, 'student')
-      `).run(first_name.trim(), last_name.trim(), normalizedEmail, hashedPassword);
+    const result = await db.transaction(async (tx) => {
+      const duplicate = await tx.prepare(`
+        SELECT id
+        FROM users
+        WHERE lower(email) = lower(?)
+        LIMIT 1
+      `).get(normalizedEmail);
 
-    await db.prepare(`
-      INSERT INTO student_profiles (user_id, grade)
-      VALUES (?, ?)
-    `).run(result.lastInsertRowid, grade);
+      if (duplicate) {
+        const duplicateError = new Error("A user with this email already exists.");
+        duplicateError.status = 409;
+        throw duplicateError;
+      }
+
+      const insertion = await tx.prepare(`
+          INSERT INTO users (first_name, last_name, email, password, role)
+          VALUES (?, ?, ?, ?, 'student')
+        `).run(first_name.trim(), last_name.trim(), normalizedEmail, hashedPassword);
+
+      await tx.prepare(`
+        INSERT INTO student_profiles (user_id, grade)
+        VALUES (?, ?)
+      `).run(insertion.lastInsertRowid, grade);
+
+      return insertion;
+    });
+
 
     res.status(201).json({
       message: "Student registered successfully!",
       user_id: result.lastInsertRowid
     });
   } catch (error) {
+    if (error.status === 409 || error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ message: "A user with this email already exists." });
+    }
+
     next(error);
   }
 });

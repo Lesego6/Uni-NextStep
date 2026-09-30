@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { registerUser } from "../services/api";
@@ -20,6 +20,7 @@ export default function AuthPage() {
   const [emailError, setEmailError] = useState("");
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -48,7 +49,12 @@ export default function AuthPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
 
+    if (submitLockRef.current) {
+      return;
+    }
+
     try {
+      submitLockRef.current = true;
       setFormError("");
       setIsSubmitting(true);
       await login(formData.email, formData.password, "student");
@@ -56,6 +62,7 @@ export default function AuthPage() {
     } catch (error) {
       setFormError(error.message);
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -63,6 +70,10 @@ export default function AuthPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setFormError("");
+
+    if (submitLockRef.current) {
+      return;
+    }
 
     if (!validateEmail(formData.email)) {
       setEmailError("Please enter a valid email address");
@@ -80,6 +91,7 @@ export default function AuthPage() {
     }
 
     try {
+      submitLockRef.current = true;
       setIsSubmitting(true);
       await registerUser({
         first_name: firstName,
@@ -95,6 +107,7 @@ export default function AuthPage() {
     } catch (error) {
       setFormError(error.message);
     } finally {
+      submitLockRef.current = false;
       setIsSubmitting(false);
     }
   };
