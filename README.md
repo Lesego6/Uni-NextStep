@@ -1,150 +1,225 @@
 # Uni NextStep
 
-A South African university guidance platform built with React, Vite, and a MySQL-backed Express API.
+Uni NextStep is a South African university guidance and application platform. Students can calculate APS, discover qualifying courses, upload application documents, submit applications, and track outcomes. Admin users can manage users, review applications, update statuses, send EmailJS notifications, and inspect activity/email history.
 
-## What it does
+## Screenshots
 
-- Calculates APS using the backend as the source of truth: Life Orientation is excluded, marks are sorted descending, and only the top six eligible subjects count.
-- Lists courses and universities from a seeded catalog, with metadata including field and minimum APS.
-- Lets students apply to matching programmes, track activity timelines, and request another review after rejected applications are corrected.
-- Collects application contact details, guardian information, and required documents before submission.
-- Lets admins manage users, audit duplicate email accounts, review applications with a decision checklist, and generate reports.
-- Records application activity and EmailJS delivery history for admin review.
-- Shows in-app student notifications with unread/read state for application updates.
-- Sends EmailJS received/status emails when applications are submitted or updated.
+| Desktop landing page | Mobile landing page |
+|---|---|
+| ![Desktop landing page](screenshots/DesktopHome.png) | ![Mobile landing page](screenshots/mobileHomePage.png) |
 
-## Stack
+| Mobile dashboard | Mobile navigation and notifications | Mobile application tracker |
+|---|---|---|
+| ![Mobile dashboard](screenshots/mobileDashboard.png) | ![Mobile navigation menu with notifications](screenshots/mobileHumbMenuView.png) | ![Mobile application tracker](screenshots/mobileTracker.png) |
 
-- React 18 + Vite
+## Key Features
+
+- Student registration and login with JWT authentication.
+- Admin login and role-protected admin routes.
+- APS calculator using backend validation and South African APS rules.
+- Seeded university and course catalog with minimum APS requirements.
+- Course recommendations based on APS and selected filters.
+- Application profile page for address, contact, guardian details, and required documents.
+- Application submission with duplicate-application checks.
+- Student application tracker with status timelines and activity history.
+- Student in-app notifications with unread/read state.
+- Admin user management with duplicate-email audit support.
+- Admin application review with rejection reasons, notes, and decision checklist.
+- Admin document preview/download support.
+- EmailJS integration for application received and status update emails.
+- Email delivery history and application activity logs.
+- Report generation for users and applications.
+- Responsive mobile layouts for student and admin workflows.
+
+## Tech Stack
+
+- React 18
+- Vite
 - Tailwind CSS
 - React Router DOM
-- Express + MySQL
-- JWT cookie auth
+- Express
+- MySQL
+- JWT authentication
+- EmailJS
 
-## Local setup
+## Project Structure
+
+```text
+UNI/
+|-- backend/
+|   |-- db/
+|   |-- middleware/
+|   |-- routes/
+|   |-- test/
+|   |-- utils/
+|   |-- database.js
+|   `-- server.js
+|-- emailjs-templates/
+|-- screenshots/
+|-- src/
+|   |-- components/
+|   |-- context/
+|   |-- data/
+|   |-- pages/
+|   `-- services/
+`-- README.md
+```
+
+## Local Setup
+
+Install frontend dependencies:
 
 ```bash
 npm install
-npm run dev
 ```
 
-Then run the API in a second terminal:
+Install backend dependencies:
 
 ```bash
 cd backend
 npm install
-npm run dev
 ```
 
-## Environment variables
+Create environment files from the examples:
 
-Copy the examples and add your local database credentials:
-
-- [.env.example](.env.example)
-- [backend/.env.example](backend/.env.example)
-
-Required DB variables include:
-
-- `DB_HOST`
-- `DB_PORT`
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_NAME`
-
-Optional EmailJS variables for status update emails:
-
-- `EMAILJS_SERVICE_ID`
-- `EMAILJS_TEMPLATE_ID`
-- `EMAILJS_RECEIVED_TEMPLATE_ID`
-- `EMAILJS_STATUS_TEMPLATE_ID`
-- `EMAILJS_ACCEPTED_TEMPLATE_ID`
-- `EMAILJS_REJECTED_TEMPLATE_ID`
-- `EMAILJS_PENDING_TEMPLATE_ID`
-- `EMAILJS_PUBLIC_KEY`
-- `EMAILJS_PRIVATE_KEY`
-
-`EMAILJS_TEMPLATE_ID` is used for application received emails. `EMAILJS_STATUS_TEMPLATE_ID` can be one shared template for accepted, rejected, and pending status updates. The accepted/rejected/pending template IDs are optional overrides if you later want separate designs per status.
-
-The EmailJS template can use these parameters: `to_email`, `to_name`, `reference_number`, `course_name`, `university_name`, `status`, `status_label`, `status_title`, `status_message`, `status_detail_title`, `status_detail`, `rejection_reason`, `status_note`, and `subject_line`.
-
-## Email Template
-
-Use `{{to_email}}` as the template recipient and `{{subject_line}}` as the subject. Ready-to-use HTML templates live in [emailjs-templates](emailjs-templates). A simple HTML body can use the status-aware variables:
-
-```html
-<div style="font-family: Arial, sans-serif; background:#f4f7fb; padding:32px;">
-  <div style="max-width:620px; margin:auto; background:#ffffff; border-radius:12px; border:1px solid #e5e7eb; overflow:hidden;">
-    <div style="background:#1A3A6B; color:#ffffff; padding:22px 28px;">
-      <h2 style="margin:0;">Uni NextStep</h2>
-      <p style="margin:6px 0 0; color:#dbeafe;">{{status_title}}</p>
-    </div>
-    <div style="padding:28px; color:#1f2937;">
-      <p>Hi {{to_name}},</p>
-      <p>{{status_message}}</p>
-      <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:16px; margin:22px 0;">
-        <p><strong>Reference:</strong> {{reference_number}}</p>
-        <p><strong>Course:</strong> {{course_name}}</p>
-        <p><strong>University:</strong> {{university_name}}</p>
-        <p><strong>Status:</strong> {{status_label}}</p>
-      </div>
-      <div style="background:#f0fdfa; border:1px solid #99f6e4; border-radius:10px; padding:16px; margin:22px 0;">
-        <p><strong>{{status_detail_title}}:</strong> {{status_detail}}</p>
-      </div>
-      <p>Regards,<br />Uni NextStep</p>
-    </div>
-  </div>
-</div>
+```bash
+copy .env.example .env
+copy backend\.env.example backend\.env
 ```
 
-## Security Notes
-
-Local `.env` files are ignored by git. If real values are ever shared in screenshots, commits, or messages, rotate `JWT_SECRET`, `ADMIN_PASSWORD`, `DB_PASSWORD`, `EMAILJS_PRIVATE_KEY`, and any affected EmailJS keys.
-
-## Database bootstrap
-
-The API bootstraps MySQL on startup through [backend/database.js](backend/database.js). It waits for the schema to be ready before serving traffic and seeds the catalog tables when empty.
-
-## Tests
-
-The backend includes Node tests for the APS logic in [backend/test/aps.test.js](backend/test/aps.test.js):
+Start the backend in one terminal:
 
 ```bash
 cd backend
-npm test
+npm.cmd run dev
+```
+
+Start the frontend in another terminal:
+
+```bash
+npm.cmd run dev
+```
+
+Default local URLs:
+
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:5000/api`
+
+## Environment Variables
+
+Frontend:
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+Backend:
+
+```env
+PORT=5000
+NODE_ENV=development
+JWT_SECRET=replace-with-a-long-random-secret
+ADMIN_EMAIL=admin@yourdomain.com
+ADMIN_PASSWORD=replace-with-a-strong-admin-password
+CORS_ORIGIN=http://localhost:5173,http://localhost:3000
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=uni_nextstep
+EMAILJS_SERVICE_ID=
+EMAILJS_TEMPLATE_ID=
+EMAILJS_RECEIVED_TEMPLATE_ID=
+EMAILJS_STATUS_TEMPLATE_ID=
+EMAILJS_ACCEPTED_TEMPLATE_ID=
+EMAILJS_REJECTED_TEMPLATE_ID=
+EMAILJS_PENDING_TEMPLATE_ID=
+EMAILJS_PUBLIC_KEY=
+EMAILJS_PRIVATE_KEY=
+```
+
+`EMAILJS_TEMPLATE_ID` is used for application received emails. `EMAILJS_STATUS_TEMPLATE_ID` can be one shared template for accepted, rejected, and pending status updates. The accepted/rejected/pending template IDs are optional overrides.
+
+Ready-to-use EmailJS HTML templates are in [emailjs-templates](emailjs-templates). In EmailJS, set the recipient field to `{{to_email}}` and the subject to `{{subject_line}}`.
+
+## Database
+
+The backend automatically creates the MySQL database and schema on startup using [backend/database.js](backend/database.js) and [backend/db/schema.sql](backend/db/schema.sql).
+
+Main entities:
+
+- `users`
+- `student_profiles`
+- `universities`
+- `courses`
+- `course_universities`
+- `application_profiles`
+- `application_documents`
+- `applications`
+- `application_events`
+- `application_email_logs`
+- `notifications`
+
+## Testing
+
+Run backend tests:
+
+```bash
+cd backend
+npm.cmd test
+```
+
+Build the frontend:
+
+```bash
+npm.cmd run build
 ```
 
 ## Demo Checklist
 
 1. Register a student with a new email address.
 2. Calculate APS and save the score.
-3. Add contact, address, guardian details, and all required documents.
+3. Add address, contact, guardian details, and all required documents.
 4. Submit an application.
-5. Log in as admin, open Application Management, and review the decision checklist.
-6. Reject with a reason, then confirm the student tracker shows the rejection and activity.
-7. Confirm the student notification bell shows the status update even if email delivery fails.
-8. Update the student documents/details and request another review.
-9. Log in as admin again and confirm activity plus email history are recorded.
-10. Accept the application and confirm the student tracker syncs.
+5. Log in as admin and open Application Management.
+6. Review the decision checklist and uploaded documents.
+7. Reject an application with a reason and note.
+8. Confirm the student tracker shows the rejection, activity, and notification.
+9. Update student details/documents and request another review.
+10. Log in as admin again and confirm activity plus email history are recorded.
+11. Accept the application and confirm the student tracker syncs.
 
 ## Routes
 
 | Route | Purpose |
 |---|---|
 | `/` | Landing page |
-| `/auth` | Student login/register |
+| `/auth` | Student login and registration |
 | `/dashboard` | Student dashboard |
 | `/calculator` | APS calculator |
-| `/courses` | Course catalog |
+| `/courses` | Course recommendations |
 | `/universities` | University browser |
 | `/documents` | Application details and document uploads |
-| `/apply` | Application flow |
+| `/apply` | Application submission |
 | `/track` | Student application tracker |
 | `/admin` | Admin login |
-| `/admin/users` | User management |
-| `/admin/applications` | Application management |
-| `/admin/reports` | Reports |
+| `/admin/users` | Admin user management |
+| `/admin/applications` | Admin application management |
+| `/admin/reports` | Admin reports |
 
-## Notes
+## Security Notes
 
-- APS rules vary by institution and programme, so the app uses the backend for the final score calculation.
-- Admin credentials are created only when `ADMIN_EMAIL` and `ADMIN_PASSWORD` are configured.
+- Passwords are hashed with bcrypt.
+- JWT auth protects student and admin routes.
+- Role checks separate student and admin functionality.
+- Auth endpoints use rate limiting.
+- CORS origins are controlled through environment variables.
+- Local `.env` files are ignored by git.
+- If secrets are exposed in screenshots, commits, or messages, rotate `JWT_SECRET`, `ADMIN_PASSWORD`, `DB_PASSWORD`, `EMAILJS_PRIVATE_KEY`, and EmailJS keys.
+
+## Known Limitations
+
+- Documents are stored as base64 in MySQL, which is acceptable for a student project but not ideal for production-scale file storage.
+- Course and university data is seeded locally instead of coming from live university APIs.
+- Email delivery depends on EmailJS configuration and account security settings.
+- APS and admission rules can vary by institution, so final acceptance is still controlled by admin review.
