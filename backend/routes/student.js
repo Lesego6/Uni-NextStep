@@ -39,6 +39,7 @@ router.post("/aps", authenticateToken, requireStudent, async (req, res, next) =>
     if (nonLifeOrientation.length < 6) {
         return res.status(400).json({ message: "Students must provide at least 6 non-Life Orientation subjects." });
     }
+    //Calculates the aps score and saves it to the database 
 
     try {
         const calculatedScore = calculateAps(sanitizedSubjects);
