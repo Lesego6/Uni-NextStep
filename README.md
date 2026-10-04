@@ -108,6 +108,10 @@ Default local URLs:
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:5000/api`
 
+## Free Hosting
+
+For a free/demo deployment, use Vercel for the frontend, Render for the backend, and Aiven MySQL for the database. Full steps are in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Environment Variables
 
 Frontend:

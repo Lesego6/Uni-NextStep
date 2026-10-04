@@ -3,6 +3,9 @@
   "name": "uni-nextstep",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",

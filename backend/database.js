@@ -9,6 +9,23 @@ const dbPort = Number(process.env.DB_PORT || 3306);
 const dbUser = process.env.DB_USER || "root";
 const dbPassword = process.env.DB_PASSWORD || "";
 const dbName = process.env.DB_NAME || "uni_nextstep";
+const shouldCreateDatabase = process.env.DB_CREATE_DATABASE !== "false";
+
+function getSslConfig() {
+  if (process.env.DB_SSL !== "true") {
+    return undefined;
+  }
+
+  const sslConfig = {
+    rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false"
+  };
+
+  if (process.env.DB_SSL_CA) {
+    sslConfig.ca = process.env.DB_SSL_CA.replace(/\\n/g, "\n");
+  }
+
+  return sslConfig;
+}
 
 async function ensureColumn(connection, tableName, columnName, definition) {
   const [columns] = await connection.query(
@@ -66,12 +83,15 @@ async function ensureDatabaseAndSchema() {
     port: dbPort,
     user: dbUser,
     password: dbPassword,
-    multipleStatements: false
+    multipleStatements: false,
+    ssl: getSslConfig()
   };
 
-  const rootConnection = await mysql.createConnection(connectionConfig);
-  await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-  await rootConnection.end();
+  if (shouldCreateDatabase) {
+    const rootConnection = await mysql.createConnection(connectionConfig);
+    await rootConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+    await rootConnection.end();
+  }
 
   const databaseConnection = await mysql.createConnection({
     ...connectionConfig,
@@ -109,7 +129,8 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  namedPlaceholders: false
+  namedPlaceholders: false,
+  ssl: getSslConfig()
 });
 
 const db = {
