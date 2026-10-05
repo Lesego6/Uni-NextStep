@@ -31,6 +31,7 @@ Uni NextStep is a South African university guidance and application platform. St
 - Email delivery history and application activity logs.
 - Report generation for users and applications.
 - Responsive mobile layouts for student and admin workflows.
+- Vercel , Render and Aiven (MySQL)
 
 ## Tech Stack
 
